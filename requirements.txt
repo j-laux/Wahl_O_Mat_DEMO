@@ -1,0 +1,32 @@
+# Web Framework & API
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.7.0
+python-multipart==0.0.20
+
+# Frontend
+streamlit==1.41.1
+requests==2.32.3
+
+# LangChain & RAG
+langchain==0.3.13
+langchain-openai==0.3.0
+langchain-chroma==0.1.4
+langchain-community==0.3.13
+
+# Vector Store
+chromadb==0.5.23
+
+# PDF Processing
+pypdf==5.1.0
+pdfplumber==0.11.4
+
+# OpenAI
+openai==1.58.1
+
+# Environment & Config
+python-dotenv==1.0.1
+
+# Utilities
+tiktoken==0.8.0
