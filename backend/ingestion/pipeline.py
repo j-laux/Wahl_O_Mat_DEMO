@@ -7,26 +7,13 @@ Kann direkt als Skript aufgerufen werden:
 
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
-
-# Projektroot zum Python-Pfad hinzufügen, damit relative Imports funktionieren
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from dotenv import load_dotenv
-
-load_dotenv()
 
 from backend.ingestion.chunker import split_documents
 from backend.ingestion.pdf_loader import load_pdf
 from backend.ingestion.vector_store import add_chunks
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s – %(message)s",
-    datefmt="%H:%M:%S",
-)
 logger = logging.getLogger(__name__)
 
 
@@ -57,9 +44,18 @@ def run_pipeline(party: str, file_path: str | Path) -> int:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Ingestion-Pipeline: PDF → ChromaDB"
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s – %(message)s",
+        datefmt="%H:%M:%S",
     )
+
+    parser = argparse.ArgumentParser(description="Ingestion-Pipeline: PDF → ChromaDB")
     parser.add_argument("--party", required=True, help="Kurzname der Partei, z.B. SPD")
     parser.add_argument("--file", required=True, help="Pfad zur PDF-Datei")
     args = parser.parse_args()

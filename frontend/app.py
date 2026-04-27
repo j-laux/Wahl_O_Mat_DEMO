@@ -24,34 +24,8 @@ st.set_page_config(
 st.title("🗳️ Wahl-O-Mat DEMO")
 st.caption("RAG-basierte Analyse deutscher Parteiprogramme zur Bundestagswahl 2025")
 
-# ── Sidebar: PDF-Ingestion ────────────────────────────────────────────────────
+# ── Sidebar: Filter ───────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("📥 Parteiprogramm einlesen")
-    party_select = st.selectbox("Partei", PARTIES)
-    pdf_path = st.text_input(
-        "PDF-Pfad (relativ zum Projektroot)",
-        placeholder="data/pdfs/spd_programm.pdf",
-    )
-    if st.button("Einlesen", type="primary"):
-        if not pdf_path:
-            st.error("Bitte einen PDF-Pfad angeben.")
-        else:
-            with st.spinner("Ingestion läuft..."):
-                try:
-                    resp = requests.post(
-                        f"{API_BASE}/ingest",
-                        json={"party": party_select, "file_path": pdf_path},
-                        timeout=120,
-                    )
-                    resp.raise_for_status()
-                    data = resp.json()
-                    st.success(data["message"])
-                except requests.HTTPError as e:
-                    st.error(f"API-Fehler: {e.response.json().get('detail', str(e))}")
-                except Exception as e:
-                    st.error(f"Verbindungsfehler: {e}")
-
-    st.divider()
     st.header("🔍 Filter")
     selected_parties = st.multiselect(
         "Nur diese Parteien durchsuchen",

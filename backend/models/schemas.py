@@ -1,5 +1,4 @@
 from pydantic import BaseModel, Field
-from typing import Optional
 
 
 class IngestRequest(BaseModel):
@@ -16,7 +15,7 @@ class IngestResponse(BaseModel):
 
 class QueryRequest(BaseModel):
     question: str = Field(..., description="Frage des Nutzers")
-    parties: Optional[list[str]] = Field(
+    parties: list[str] | None = Field(
         default=None,
         description="Filtert Ergebnisse auf diese Parteien. None = alle Parteien.",
     )

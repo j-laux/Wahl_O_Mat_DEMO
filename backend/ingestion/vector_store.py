@@ -5,6 +5,7 @@ Stellt Funktionen bereit zum Einfügen von Chunks und zum späteren Retrieval.
 
 import logging
 import os
+from functools import lru_cache
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -13,19 +14,16 @@ from langchain_openai import OpenAIEmbeddings
 logger = logging.getLogger(__name__)
 
 _CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", "./data/chroma_db")
-_COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "parteiprogramme")
+COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "parteiprogramme")
 _EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
 
 
-def _get_embeddings() -> OpenAIEmbeddings:
-    return OpenAIEmbeddings(model=_EMBEDDING_MODEL)
-
-
+@lru_cache(maxsize=1)
 def get_vector_store() -> Chroma:
-    """Gibt eine bestehende (oder neue) ChromaDB-Collection zurück."""
+    """Gibt die ChromaDB-Collection zurück (Singleton, wird einmalig initialisiert)."""
     return Chroma(
-        collection_name=_COLLECTION_NAME,
-        embedding_function=_get_embeddings(),
+        collection_name=COLLECTION_NAME,
+        embedding_function=OpenAIEmbeddings(model=_EMBEDDING_MODEL),
         persist_directory=_CHROMA_DB_PATH,
     )
 
@@ -50,7 +48,7 @@ def add_chunks(chunks: list[Document]) -> int:
     logger.info(
         "%d Chunks in Collection '%s' gespeichert (Pfad: %s)",
         len(chunks),
-        _COLLECTION_NAME,
+        COLLECTION_NAME,
         _CHROMA_DB_PATH,
     )
     return len(chunks)
@@ -73,7 +71,6 @@ def similarity_search(
         Liste der relevantesten Documents.
     """
     vector_store = get_vector_store()
-
     where_filter = None
     if party_filter:
         if len(party_filter) == 1:

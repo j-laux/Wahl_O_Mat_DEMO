@@ -3,12 +3,11 @@ FastAPI-Router: Endpunkte für Ingestion und Abfrage.
 """
 
 import logging
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
 from backend.ingestion.pipeline import run_pipeline
-from backend.ingestion.vector_store import similarity_search, _COLLECTION_NAME
+from backend.ingestion.vector_store import similarity_search, COLLECTION_NAME
 from backend.models.schemas import (
     IngestRequest,
     IngestResponse,
@@ -19,6 +18,8 @@ from backend.models.schemas import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+_SOURCE_CONTENT_LENGTH = 500
 
 
 @router.post("/ingest", response_model=IngestResponse, tags=["Ingestion"])
@@ -35,7 +36,7 @@ def ingest_pdf(request: IngestRequest) -> IngestResponse:
     return IngestResponse(
         party=request.party,
         chunks_stored=stored,
-        collection=_COLLECTION_NAME,
+        collection=COLLECTION_NAME,
         message=f"{stored} Chunks erfolgreich in ChromaDB gespeichert.",
     )
 
@@ -63,7 +64,7 @@ def query(request: QueryRequest) -> QueryResponse:
         SourceDocument(
             party=d.metadata.get("party", "unbekannt"),
             page=d.metadata.get("page", 0),
-            content=d.page_content[:500],
+            content=d.page_content[:_SOURCE_CONTENT_LENGTH],
         )
         for d in docs
     ]
