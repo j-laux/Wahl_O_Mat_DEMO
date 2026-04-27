@@ -7,8 +7,6 @@ Kann direkt als Skript aufgerufen werden:
 
 import argparse
 import logging
-import sys
-from pathlib import Path
 
 from backend.ingestion.chunker import split_documents
 from backend.ingestion.pdf_loader import load_pdf
@@ -44,11 +42,8 @@ def run_pipeline(party: str, file_path: str | Path) -> int:
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-    from dotenv import load_dotenv
-    load_dotenv()
-
+    # Aufruf: python -m backend.ingestion.pipeline --party SPD --file data/pdfs/spd.pdf
+    # .env wird von get_settings() automatisch eingelesen.
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s – %(message)s",

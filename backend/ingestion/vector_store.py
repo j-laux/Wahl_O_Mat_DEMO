@@ -1,55 +1,49 @@
 """
 Vector Store: Wrapper um ChromaDB via LangChain.
-Stellt Funktionen bereit zum Einfügen von Chunks und zum späteren Retrieval.
+Stellt add_chunks() und similarity_search() bereit.
+Der Rest der App kennt keine ChromaDB-Details.
 """
 
 import logging
-import os
 from functools import lru_cache
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 
-logger = logging.getLogger(__name__)
+from backend.config import get_settings
 
-_CHROMA_DB_PATH = os.getenv("CHROMA_DB_PATH", "./data/chroma_db")
-COLLECTION_NAME = os.getenv("CHROMA_COLLECTION_NAME", "parteiprogramme")
-_EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=1)
 def get_vector_store() -> Chroma:
-    """Gibt die ChromaDB-Collection zurück (Singleton, wird einmalig initialisiert)."""
+    """Gibt die ChromaDB-Collection zurück (Singleton, einmalig initialisiert)."""
+    settings = get_settings()
+    embeddings = OpenAIEmbeddings(
+        model=settings.embedding_model,
+        api_key=settings.openai_api_key.get_secret_value(),
+    )
     return Chroma(
-        collection_name=COLLECTION_NAME,
-        embedding_function=OpenAIEmbeddings(model=_EMBEDDING_MODEL),
-        persist_directory=_CHROMA_DB_PATH,
+        collection_name=settings.chroma_collection_name,
+        embedding_function=embeddings,
+        persist_directory=settings.chroma_db_path,
     )
 
 
 def add_chunks(chunks: list[Document]) -> int:
-    """
-    Fügt Chunks in die ChromaDB-Collection ein.
-
-    Args:
-        chunks: Liste von LangChain-Documents mit Metadaten.
-
-    Returns:
-        Anzahl der gespeicherten Chunks.
-    """
+    """Fügt Chunks in die ChromaDB-Collection ein. Gibt Anzahl gespeicherter Chunks zurück."""
     if not chunks:
         logger.warning("Keine Chunks zum Einfügen übergeben.")
         return 0
 
-    vector_store = get_vector_store()
-    vector_store.add_documents(chunks)
-
+    settings = get_settings()
+    get_vector_store().add_documents(chunks)
     logger.info(
         "%d Chunks in Collection '%s' gespeichert (Pfad: %s)",
         len(chunks),
-        COLLECTION_NAME,
-        _CHROMA_DB_PATH,
+        settings.chroma_collection_name,
+        settings.chroma_db_path,
     )
     return len(chunks)
 
@@ -60,27 +54,22 @@ def similarity_search(
     party_filter: list[str] | None = None,
 ) -> list[Document]:
     """
-    Führt eine Ähnlichkeitssuche in ChromaDB durch.
+    Ähnlichkeitssuche in ChromaDB.
 
     Args:
-        query:         Suchanfrage.
-        top_k:         Maximale Anzahl zurückgegebener Dokumente.
-        party_filter:  Optionale Liste von Parteinamen zum Filtern.
+        query:        Suchanfrage als natürlichsprachiger Text.
+        top_k:        Maximale Anzahl zurückgegebener Dokumente.
+        party_filter: Optionale Partei-Whitelist; None = alle Parteien.
 
     Returns:
-        Liste der relevantesten Documents.
+        Liste der relevantesten Documents mit Metadaten (party, page, source).
     """
-    vector_store = get_vector_store()
     where_filter = None
     if party_filter:
-        if len(party_filter) == 1:
-            where_filter = {"party": party_filter[0]}
-        else:
-            where_filter = {"party": {"$in": party_filter}}
+        where_filter = (
+            {"party": party_filter[0]}
+            if len(party_filter) == 1
+            else {"party": {"$in": party_filter}}
+        )
 
-    results = vector_store.similarity_search(
-        query,
-        k=top_k,
-        filter=where_filter,
-    )
-    return results
+    return get_vector_store().similarity_search(query, k=top_k, filter=where_filter)

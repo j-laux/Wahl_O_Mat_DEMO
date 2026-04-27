@@ -8,13 +8,11 @@ Starten:
 import logging
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-load_dotenv()
-
 from backend.api.routes import router
+from backend.config import get_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -22,12 +20,20 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.getLogger(__name__).info("Wahl-O-Mat Backend gestartet.")
+    # Settings beim Start validieren – fehlt OPENAI_API_KEY, schlägt der Start sofort fehl
+    settings = get_settings()
+    logger.info(
+        "Wahl-O-Mat Backend gestartet – LLM: %s | Embeddings: %s",
+        settings.llm_model,
+        settings.embedding_model,
+    )
     yield
-    logging.getLogger(__name__).info("Wahl-O-Mat Backend gestoppt.")
+    logger.info("Wahl-O-Mat Backend gestoppt.")
 
 
 app = FastAPI(

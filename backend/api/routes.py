@@ -1,13 +1,18 @@
 """
 FastAPI-Router: Endpunkte für Ingestion und Abfrage.
+
+/ingest  – Dev/Admin-Werkzeug zum Aufbau des Vector Stores (nicht in der UI)
+/query   – User-facing RAG-Abfrage (LLM-Chain folgt in Phase 1, Schritt 2)
+/health  – Liveness-Check
 """
 
 import logging
 
 from fastapi import APIRouter, HTTPException
 
+from backend.config import get_settings
 from backend.ingestion.pipeline import run_pipeline
-from backend.ingestion.vector_store import similarity_search, COLLECTION_NAME
+from backend.ingestion.vector_store import similarity_search
 from backend.models.schemas import (
     IngestRequest,
     IngestResponse,
@@ -36,7 +41,7 @@ def ingest_pdf(request: IngestRequest) -> IngestResponse:
     return IngestResponse(
         party=request.party,
         chunks_stored=stored,
-        collection=COLLECTION_NAME,
+        collection=get_settings().chroma_collection_name,
         message=f"{stored} Chunks erfolgreich in ChromaDB gespeichert.",
     )
 
@@ -69,8 +74,7 @@ def query(request: QueryRequest) -> QueryResponse:
         for d in docs
     ]
 
-    # Einfache Antwort: Gibt die relevantesten Textstellen zurück.
-    # In der nächsten Iteration wird hier eine LLM-Kette eingebaut.
+    # Placeholder – wird in Phase 1 Schritt 2 durch echte LCEL-Chain ersetzt
     answer = (
         f"Gefundene {len(docs)} relevante Textstellen. "
         "LLM-Zusammenfassung folgt in der nächsten Iteration."

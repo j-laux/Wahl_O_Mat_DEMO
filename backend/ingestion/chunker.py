@@ -1,41 +1,38 @@
 """
 Text-Chunker: Teilt LangChain-Documents in kleinere, überlappende Chunks auf.
-Die Chunking-Parameter werden aus den Umgebungsvariablen CHUNK_SIZE und
-CHUNK_OVERLAP gelesen (Defaults: 1000 / 200 Zeichen).
+Chunk-Größe und Overlap werden aus den zentralen Settings gelesen.
 """
 
 import logging
-import os
 
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+from backend.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 
 def split_documents(docs: list[Document]) -> list[Document]:
     """
-    Teilt eine Liste von Documents in Chunks auf.
+    Teilt eine Liste von Documents in überlappende Chunks auf.
 
     Args:
         docs: LangChain-Documents (z.B. aus pdf_loader.load_pdf).
 
     Returns:
-        Liste von Chunk-Documents mit erhaltenen Metadaten.
+        Chunk-Documents mit erhaltenen Metadaten + chunk_index.
     """
-    chunk_size = int(os.getenv("CHUNK_SIZE", "1000"))
-    chunk_overlap = int(os.getenv("CHUNK_OVERLAP", "200"))
-
+    settings = get_settings()
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+        chunk_size=settings.chunk_size,
+        chunk_overlap=settings.chunk_overlap,
         separators=["\n\n", "\n", ". ", " ", ""],
         length_function=len,
     )
 
     chunks = splitter.split_documents(docs)
 
-    # Chunk-Index pro Seite für bessere Nachvollziehbarkeit
     for i, chunk in enumerate(chunks):
         chunk.metadata["chunk_index"] = i
 
@@ -43,7 +40,7 @@ def split_documents(docs: list[Document]) -> list[Document]:
         "Chunking: %d Seiten → %d Chunks (size=%d, overlap=%d)",
         len(docs),
         len(chunks),
-        chunk_size,
-        chunk_overlap,
+        settings.chunk_size,
+        settings.chunk_overlap,
     )
     return chunks
