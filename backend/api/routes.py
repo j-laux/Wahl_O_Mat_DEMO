@@ -2,7 +2,7 @@
 FastAPI-Router: Endpunkte für Ingestion und Abfrage.
 
 /ingest  – Dev/Admin-Werkzeug zum Aufbau des Vector Stores (nicht in der UI)
-/query   – User-facing RAG-Abfrage (LLM-Chain folgt in Phase 1, Schritt 2)
+/query   – User-facing RAG-Abfrage mit HyDE
 /health  – Liveness-Check
 """
 
@@ -12,7 +12,6 @@ from fastapi import APIRouter, HTTPException
 
 from backend.config import get_settings
 from backend.ingestion.pipeline import run_pipeline
-from backend.ingestion.vector_store import similarity_search
 from backend.models.schemas import (
     IngestRequest,
     IngestResponse,
@@ -20,6 +19,7 @@ from backend.models.schemas import (
     QueryResponse,
     SourceDocument,
 )
+from backend.rag.chain import run_rag
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -48,15 +48,15 @@ def ingest_pdf(request: IngestRequest) -> IngestResponse:
 
 @router.post("/query", response_model=QueryResponse, tags=["RAG"])
 def query(request: QueryRequest) -> QueryResponse:
-    """Beantwortet eine Frage auf Basis der eingelesenen Parteiprogramme."""
+    """Beantwortet eine Frage via RAG-Chain mit HyDE."""
     try:
-        docs = similarity_search(
-            query=request.question,
+        answer, docs = run_rag(
+            question=request.question,
             top_k=request.top_k,
             party_filter=request.parties,
         )
     except Exception as e:
-        logger.exception("Fehler bei der Vektordatenbankabfrage")
+        logger.exception("Fehler in der RAG-Chain")
         raise HTTPException(status_code=500, detail=str(e))
 
     if not docs:
@@ -73,12 +73,6 @@ def query(request: QueryRequest) -> QueryResponse:
         )
         for d in docs
     ]
-
-    # Placeholder – wird in Phase 1 Schritt 2 durch echte LCEL-Chain ersetzt
-    answer = (
-        f"Gefundene {len(docs)} relevante Textstellen. "
-        "LLM-Zusammenfassung folgt in der nächsten Iteration."
-    )
 
     return QueryResponse(answer=answer, sources=sources)
 

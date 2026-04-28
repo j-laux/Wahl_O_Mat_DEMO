@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     # Embeddings & LLM
     embedding_model: str = "text-embedding-3-small"
     llm_model: str = "gpt-4o-mini"
+    llm_temperature: float = 0.0  # 0 = deterministisch, besser für faktische Q&A
 
     # ChromaDB
     chroma_db_path: str = "./data/chroma_db"
