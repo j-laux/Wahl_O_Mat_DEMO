@@ -31,6 +31,29 @@ def get_vector_store() -> Chroma:
     )
 
 
+def delete_party(party: str) -> int:
+    """
+    Löscht alle Chunks einer Partei aus der Collection.
+
+    Greift direkt auf die ChromaDB-Collection zu, da der LangChain-Wrapper
+    kein where-basiertes Delete exponiert.
+
+    Args:
+        party: Kurzname der Partei (muss exakt dem Metadatum entsprechen).
+
+    Returns:
+        Anzahl der gelöschten Chunks (0 wenn keine vorhanden waren).
+    """
+    collection = get_vector_store()._collection
+    # include=[] → nur IDs abrufen, kein Embedding/Text-Transfer
+    existing = collection.get(where={"party": party}, include=[])
+    count = len(existing["ids"])
+    if count:
+        collection.delete(where={"party": party})
+        logger.info("Partei '%s': %d alte Chunks gelöscht.", party, count)
+    return count
+
+
 def add_chunks(chunks: list[Document]) -> int:
     """Fügt Chunks in die ChromaDB-Collection ein. Gibt Anzahl gespeicherter Chunks zurück."""
     if not chunks:

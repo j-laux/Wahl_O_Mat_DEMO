@@ -7,10 +7,11 @@ Kann direkt als Skript aufgerufen werden:
 
 import argparse
 import logging
+from pathlib import Path
 
 from backend.ingestion.chunker import split_documents
 from backend.ingestion.pdf_loader import load_pdf
-from backend.ingestion.vector_store import add_chunks
+from backend.ingestion.vector_store import add_chunks, delete_party
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,11 @@ def run_pipeline(party: str, file_path: str | Path) -> int:
         Anzahl der in ChromaDB gespeicherten Chunks.
     """
     logger.info("=== Starte Ingestion-Pipeline für Partei: %s ===", party)
+
+    # 0. Bestehende Chunks der Partei löschen (verhindert Duplikate bei erneutem Einlesen)
+    deleted = delete_party(party)
+    if deleted:
+        logger.info("  → %d bestehende Chunks ersetzt.", deleted)
 
     # 1. PDF laden
     docs = load_pdf(file_path, party=party)
