@@ -11,8 +11,8 @@ Pipeline (zwei LLM-Calls pro Anfrage):
         ▼  Embedding + ChromaDB similarity_search
     Relevante Chunks (party, page, content)
         │
-        ▼  [2] Antwort-Chain
-    Antwort mit Quellenangaben [Partei, S. X]
+        ▼  [2] Antwort-Chain (with_structured_output)
+    RagAnswer { summary, positions: [PartyPosition] }
 
 Warum HyDE?
     Die Embedding-Distanz zwischen einer kurzen Frage und einem langen Fließtext
@@ -28,9 +28,11 @@ from langchain_core.documents import Document
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
 
 from backend.config import get_settings
 from backend.ingestion.vector_store import similarity_search
+from backend.models.schemas import PartyPosition
 
 logger = logging.getLogger(__name__)
 
@@ -54,19 +56,37 @@ _RAG_PROMPT = ChatPromptTemplate.from_messages([
         "Beantworte die Frage ausschließlich auf Basis der folgenden Textausschnitte "
         "aus deutschen Parteiprogrammen zur Bundestagswahl 2025.\n\n"
         "Regeln:\n"
-        "- Zitiere für jede Aussage die Quelle in eckigen Klammern, z.B. [SPD, S. 12]\n"
-        "- Vergleiche die Positionen der Parteien sachlich, wenn mehrere vorhanden sind\n"
-        "- Wenn die Textausschnitte die Frage nicht beantworten können, sage das explizit\n\n"
+        "- Beschreibe nur Parteien, die im Kontext tatsächlich zu dieser Frage Stellung nehmen\n"
+        "- Bleib sachlich und nah am Quelltext\n"
+        "- Wenn der Kontext die Frage nicht beantworten kann, sage das in 'summary' explizit\n\n"
         "Kontext:\n{context}",
     ),
     ("human", "{question}"),
 ])
 
+# ── LLM-Schema für strukturierte Ausgabe ──────────────────────────────────────
+
+
+class RagAnswer(BaseModel):
+    """Strukturierte LLM-Antwort. Wird intern verwendet; die API gibt QueryResponse zurück."""
+
+    summary: str = Field(
+        description="Übergreifende Zusammenfassung der Parteipositionen zu dieser Frage in 2-4 Sätzen."
+    )
+    positions: list[PartyPosition] = Field(
+        description=(
+            "Eine Einheit pro Partei, die im Kontext zu dieser Frage Stellung nimmt. "
+            "Nur Parteien aufnehmen, die tatsächlich im Kontext vorkommen."
+        )
+    )
+
+
 # ── LLM-Singleton ─────────────────────────────────────────────────────────────
 
 
 @lru_cache(maxsize=1)
-def _get_llm() -> ChatOpenAI:
+def get_llm() -> ChatOpenAI:
+    """Gibt den ChatOpenAI-Singleton zurück (geteilt mit factsheet.py)."""
     settings = get_settings()
     return ChatOpenAI(
         model=settings.llm_model,
@@ -95,7 +115,7 @@ def run_rag(
     question: str,
     top_k: int = 5,
     party_filter: list[str] | None = None,
-) -> tuple[str, list[Document]]:
+) -> tuple[RagAnswer, list[Document]]:
     """
     Führt die vollständige RAG-Pipeline mit HyDE aus.
 
@@ -105,10 +125,10 @@ def run_rag(
         party_filter: Optionale Partei-Whitelist; None = alle Parteien.
 
     Returns:
-        Tuple (Antworttext, retrieved Documents).
-        Bei leerem Retrieval-Ergebnis: ("", []).
+        Tuple (RagAnswer, retrieved Documents).
+        Bei leerem Retrieval-Ergebnis: (RagAnswer mit Hinweis, []).
     """
-    llm = _get_llm()
+    llm = get_llm()
 
     # Schritt 1: HyDE – hypothetischen Programmtext generieren
     hyde_chain = _HYDE_PROMPT | llm | StrOutputParser()
@@ -124,11 +144,15 @@ def run_rag(
     logger.info("Retrieval: %d Chunks gefunden (HyDE, top_k=%d)", len(docs), top_k)
 
     if not docs:
-        return "", []
+        return RagAnswer(
+            summary="Keine relevanten Textstellen gefunden. Bitte zuerst Parteiprogramme einlesen.",
+            positions=[],
+        ), []
 
-    # Schritt 3: Antwort auf Basis der gefundenen Chunks generieren
-    answer_chain = _RAG_PROMPT | llm | StrOutputParser()
-    answer = answer_chain.invoke({
+    # Schritt 3: Strukturierte Antwort auf Basis der gefundenen Chunks
+    structured_llm = llm.with_structured_output(RagAnswer)
+    answer_chain = _RAG_PROMPT | structured_llm
+    answer: RagAnswer = answer_chain.invoke({
         "question": question,
         "context": _format_context(docs),
     })

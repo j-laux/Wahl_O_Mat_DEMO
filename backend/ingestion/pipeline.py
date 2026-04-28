@@ -12,6 +12,7 @@ from pathlib import Path
 from backend.ingestion.chunker import split_documents
 from backend.ingestion.pdf_loader import load_pdf
 from backend.ingestion.vector_store import add_chunks, delete_party
+from backend.rag.factsheet import generate_factsheet
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,12 @@ def run_pipeline(party: str, file_path: str | Path) -> int:
 
     # 3. In ChromaDB speichern
     stored = add_chunks(chunks)
+
+    # 4. Fact-Sheet generieren (best-effort – Fehler blockieren nicht die Ingestion)
+    try:
+        generate_factsheet(party)
+    except Exception:
+        logger.warning("Fact-Sheet-Generierung fehlgeschlagen, Ingestion wird fortgesetzt.", exc_info=True)
 
     logger.info("=== Pipeline abgeschlossen: %d Chunks gespeichert ===", stored)
     return stored

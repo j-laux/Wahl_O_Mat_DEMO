@@ -24,7 +24,7 @@ st.set_page_config(
 st.title("🗳️ Wahl-O-Mat DEMO")
 st.caption("RAG-basierte Analyse deutscher Parteiprogramme zur Bundestagswahl 2025")
 
-# ── Sidebar: Filter ───────────────────────────────────────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.header("🔍 Filter")
     selected_parties = st.multiselect(
@@ -34,6 +34,30 @@ with st.sidebar:
         placeholder="Alle Parteien",
     )
     top_k = st.slider("Anzahl Textstellen", min_value=1, max_value=20, value=5)
+
+    st.divider()
+
+    st.header("📋 Partei-Fact-Sheet")
+    factsheet_party = st.selectbox("Partei auswählen", PARTIES, key="factsheet_select")
+    if st.button("Fact-Sheet laden"):
+        try:
+            resp = requests.get(f"{API_BASE}/factsheet/{factsheet_party}", timeout=10)
+            if resp.status_code == 404:
+                st.warning("Noch kein Fact-Sheet vorhanden. Bitte zuerst das PDF einlesen.")
+            else:
+                resp.raise_for_status()
+                fs = resp.json()
+                st.markdown(f"**Politische Positionierung**")
+                st.write(fs["political_position"])
+                st.markdown("**Kernthemen**")
+                for topic in fs["top_topics"]:
+                    st.markdown(f"- {topic}")
+                st.markdown("**Kernversprechen**")
+                for promise in fs["key_promises"]:
+                    st.markdown(f"- {promise}")
+                st.caption(f"Generiert: {fs['generated_at'][:10]}")
+        except Exception as e:
+            st.error(f"Fehler: {e}")
 
 # ── Hauptbereich: Abfrage ─────────────────────────────────────────────────────
 st.header("💬 Frage stellen")
@@ -61,9 +85,20 @@ if st.button("Antwort suchen", type="primary"):
                 resp.raise_for_status()
                 data = resp.json()
 
-                st.subheader("Antwort")
-                st.write(data["answer"])
+                # Zusammenfassung
+                st.subheader("Zusammenfassung")
+                st.write(data["summary"])
 
+                # Parteipositionen als Karten
+                if data["positions"]:
+                    st.subheader("Positionen der Parteien")
+                    cols = st.columns(min(len(data["positions"]), 3))
+                    for i, pos in enumerate(data["positions"]):
+                        with cols[i % len(cols)]:
+                            st.markdown(f"**{pos['party']}**")
+                            st.write(pos["position"])
+
+                # Quelltexte
                 st.subheader("Relevante Textstellen")
                 for i, src in enumerate(data["sources"], 1):
                     with st.expander(

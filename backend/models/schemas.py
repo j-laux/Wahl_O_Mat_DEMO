@@ -28,6 +28,13 @@ class SourceDocument(BaseModel):
     content: str
 
 
+class PartyPosition(BaseModel):
+    """Position einer einzelnen Partei zu einer Frage – Teil der strukturierten LLM-Antwort."""
+    party: str = Field(description="Kurzname der Partei, z.B. 'SPD', 'Grüne', 'CDU'")
+    position: str = Field(description="Position der Partei zu dieser Frage in 2-3 Sätzen, nah am Quelltext")
+
+
 class QueryResponse(BaseModel):
-    answer: str
+    summary: str
+    positions: list[PartyPosition]
     sources: list[SourceDocument]

@@ -1,9 +1,10 @@
 """
 FastAPI-Router: Endpunkte für Ingestion und Abfrage.
 
-/ingest  – Dev/Admin-Werkzeug zum Aufbau des Vector Stores (nicht in der UI)
-/query   – User-facing RAG-Abfrage mit HyDE
-/health  – Liveness-Check
+/ingest           – Dev/Admin-Werkzeug zum Aufbau des Vector Stores (nicht in der UI)
+/query            – User-facing RAG-Abfrage mit HyDE + Structured Output
+/factsheet/{party}– Gibt das bei der Ingestion generierte Fact-Sheet zurück
+/health           – Liveness-Check
 """
 
 import logging
@@ -20,6 +21,7 @@ from backend.models.schemas import (
     SourceDocument,
 )
 from backend.rag.chain import run_rag
+from backend.rag.factsheet import FactSheet, load_factsheet
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -29,7 +31,7 @@ _SOURCE_CONTENT_LENGTH = 500
 
 @router.post("/ingest", response_model=IngestResponse, tags=["Ingestion"])
 def ingest_pdf(request: IngestRequest) -> IngestResponse:
-    """Liest ein Parteiprogramm-PDF ein und speichert Chunks in ChromaDB."""
+    """Liest ein Parteiprogramm-PDF ein, speichert Chunks und generiert ein Fact-Sheet."""
     try:
         stored = run_pipeline(party=request.party, file_path=request.file_path)
     except FileNotFoundError as e:
@@ -48,7 +50,7 @@ def ingest_pdf(request: IngestRequest) -> IngestResponse:
 
 @router.post("/query", response_model=QueryResponse, tags=["RAG"])
 def query(request: QueryRequest) -> QueryResponse:
-    """Beantwortet eine Frage via RAG-Chain mit HyDE."""
+    """Beantwortet eine Frage via RAG-Chain mit HyDE. Gibt strukturierte Antwort zurück."""
     try:
         answer, docs = run_rag(
             question=request.question,
@@ -74,7 +76,23 @@ def query(request: QueryRequest) -> QueryResponse:
         for d in docs
     ]
 
-    return QueryResponse(answer=answer, sources=sources)
+    return QueryResponse(
+        summary=answer.summary,
+        positions=answer.positions,
+        sources=sources,
+    )
+
+
+@router.get("/factsheet/{party}", response_model=FactSheet, tags=["RAG"])
+def get_factsheet(party: str) -> FactSheet:
+    """Gibt das bei der Ingestion generierte Fact-Sheet einer Partei zurück."""
+    factsheet = load_factsheet(party)
+    if factsheet is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Kein Fact-Sheet für '{party}' gefunden. Bitte zuerst das PDF einlesen.",
+        )
+    return factsheet
 
 
 @router.get("/health", tags=["System"])
