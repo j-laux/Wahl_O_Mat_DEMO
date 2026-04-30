@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
-_HYDE_PROMPT = ChatPromptTemplate.from_messages([
+HYDE_PROMPT = ChatPromptTemplate.from_messages([
     (
         "system",
         "Du bist Experte für deutsche Parteipolitik. "
@@ -131,7 +131,7 @@ def run_rag(
     llm = get_llm()
 
     # Schritt 1: HyDE – hypothetischen Programmtext generieren
-    hyde_chain = _HYDE_PROMPT | llm | StrOutputParser()
+    hyde_chain = HYDE_PROMPT | llm | StrOutputParser()
     hypothetical_doc = hyde_chain.invoke({"question": question})
     logger.debug("HyDE-Dokument: %s", hypothetical_doc[:120])
 

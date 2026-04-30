@@ -3,6 +3,7 @@ FastAPI-Router: Endpunkte für Ingestion und Abfrage.
 
 /ingest           – Dev/Admin-Werkzeug zum Aufbau des Vector Stores (nicht in der UI)
 /query            – User-facing RAG-Abfrage mit HyDE + Structured Output
+/compare          – Parteienvergleich mit HyDE + Stance Detection
 /factsheet/{party}– Gibt das bei der Ingestion generierte Fact-Sheet zurück
 /health           – Liveness-Check
 """
@@ -14,6 +15,8 @@ from fastapi import APIRouter, HTTPException
 from backend.config import get_settings
 from backend.ingestion.pipeline import run_pipeline
 from backend.models.schemas import (
+    CompareRequest,
+    CompareResponse,
     IngestRequest,
     IngestResponse,
     QueryRequest,
@@ -21,6 +24,7 @@ from backend.models.schemas import (
     SourceDocument,
 )
 from backend.rag.chain import run_rag
+from backend.rag.compare import docs_to_sources, run_compare
 from backend.rag.factsheet import FactSheet, load_factsheet
 
 logger = logging.getLogger(__name__)
@@ -80,6 +84,33 @@ def query(request: QueryRequest) -> QueryResponse:
         summary=answer.summary,
         positions=answer.positions,
         sources=sources,
+    )
+
+
+@router.post("/compare", response_model=CompareResponse, tags=["RAG"])
+def compare(request: CompareRequest) -> CompareResponse:
+    """Vergleicht Parteipositionen via HyDE-Retrieval + Stance Detection."""
+    try:
+        answer, party_docs = run_compare(
+            question=request.question,
+            parties=request.parties,
+            top_k_per_party=request.top_k_per_party,
+        )
+    except Exception as e:
+        logger.exception("Fehler in der Compare-Chain")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    if not party_docs:
+        raise HTTPException(
+            status_code=404,
+            detail="Keine relevanten Textstellen gefunden. Bitte zuerst PDFs einlesen.",
+        )
+
+    return CompareResponse(
+        question=request.question,
+        summary=answer.summary,
+        comparisons=answer.comparisons,
+        sources=docs_to_sources(party_docs),
     )
 
 
