@@ -1,0 +1,4 @@
+# Evaluation-Dependencies (nicht für Produktion)
+# pip install -r requirements-eval.txt
+ragas>=0.1.0,<0.2.0
+datasets>=2.14.0
