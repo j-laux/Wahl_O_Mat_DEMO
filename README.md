@@ -5,8 +5,6 @@ Nutzer können Fragen zu politischen Themen stellen, Antworten mit Quellenangabe
 und die Positionen mehrerer Parteien strukturiert vergleichen – inklusive automatischer
 Stance-Klassifizierung (progressiv / konservativ / neutral).
 
-> **Portfolio-Projekt** – Fokus liegt auf der KI-Pipeline und der Architektur, nicht auf einem Produktlaunch.
-
 ---
 
 ## Features
