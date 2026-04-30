@@ -1,7 +1,24 @@
 # Wahl-O-Mat DEMO
 
 RAG-basierte Web-App zur Analyse deutscher Parteiprogramme zur **Bundestagswahl 2025**.
-Nutzer können Fragen zu politischen Themen stellen und erhalten Antworten, die direkt aus den offiziellen Parteiprogrammen belegt sind – mit Quellenangaben (Partei + Seite).
+Nutzer können Fragen zu politischen Themen stellen, Antworten mit Quellenangaben erhalten
+und die Positionen mehrerer Parteien strukturiert vergleichen – inklusive automatischer
+Stance-Klassifizierung (progressiv / konservativ / neutral).
+
+> **Portfolio-Projekt** – Fokus liegt auf der KI-Pipeline und der Architektur, nicht auf einem Produktlaunch.
+
+---
+
+## Features
+
+| Feature | Beschreibung |
+|---|---|
+| **RAG mit HyDE** | Fragen werden vor dem Retrieval in hypothetischen Programmtext umgewandelt für bessere Chunk-Qualität |
+| **Structured Output** | LLM gibt typisiertes JSON zurück (Pydantic + OpenAI Function Calling), kein String-Parsing |
+| **Parteienvergleich** | `/compare` stellt Parteipositionen gegenüber, pro Partei mit Stance-Klassifizierung |
+| **Stance Detection** | LLM klassifiziert jede Partei als progressiv / konservativ / neutral / unklar |
+| **Fact-Sheets** | Bei der Ingestion automatisch generiert: Kernthemen, Versprechen, Positionierung |
+| **Deduplizierung** | Erneutes Einlesen ersetzt bestehende Chunks, keine Duplikate in ChromaDB |
 
 ---
 
@@ -12,12 +29,12 @@ Das Projekt trennt bewusst zwei Workflows:
 **Dev-Workflow (einmalig, offline):**
 ```
 PDF-Dateien  →  Ingestion-Pipeline  →  ChromaDB (persistent auf Disk)
-                 └─ PyPDFLoader
+                 └─ PyPDFLoader                    + Fact-Sheet (JSON)
                  └─ RecursiveCharacterTextSplitter
                  └─ OpenAI Embeddings
 ```
 
-**User-Workflow (pro Anfrage):**
+**User-Workflow – Einzelabfrage (`/query`):**
 ```
 Nutzerfrage
     │
@@ -27,12 +44,33 @@ Hypothetischer Text
     ▼  Embedding + ChromaDB Similarity Search
 Relevante Chunks (Partei, Seite, Inhalt)
     │
-    ▼  [2] RAG: LLM beantwortet Original-Frage mit Kontext
-Antwort mit Quellenangaben [Partei, S. X]
+    ▼  [2] RAG: LLM beantwortet Original-Frage (with_structured_output)
+{ summary, positions: [{ party, position }], sources }
+```
+
+**User-Workflow – Parteienvergleich (`/compare`):**
+```
+Frage + Parteien-Liste
+    │
+    ▼  [1] HyDE: einmal für alle Parteien
+Hypothetischer Text
+    │
+    ▼  Retrieval pro Partei separat (gleiche Chunk-Anzahl je Partei)
+Chunks je Partei { "SPD": [...], "Grüne": [...], ... }
+    │
+    ▼  [2] Vergleichs-Chain (with_structured_output)
+{ summary, comparisons: [{ party, position, key_points, stance }], sources }
 ```
 
 **Warum HyDE?**
-Die Embedding-Distanz zwischen einer kurzen Nutzerfrage und einem langen Fließtext aus einem Parteiprogramm ist strukturell größer als die Distanz zwischen zwei inhaltlich ähnlichen Texten. HyDE überbrückt diesen Raum, indem der Suchvektor nicht aus der Frage, sondern aus einem synthetischen Antwort-Text berechnet wird. Kostet einen zweiten LLM-Call – verbessert die Retrieval-Qualität bei politischem Fachtext messbar.
+Die Embedding-Distanz zwischen einer kurzen Nutzerfrage und einem langen Fließtext
+ist strukturell größer als zwischen zwei inhaltlich ähnlichen Texten. HyDE überbrückt
+diesen Raum durch einen synthetischen Antwort-Text als Suchvektor.
+Trade-off: +1 LLM-Call pro Anfrage.
+
+**Warum Retrieval pro Partei beim Vergleich?**
+Ein globales Top-K würde größere oder sprachlich dominantere Parteiprogramme bevorzugen.
+Pro-Partei-Retrieval garantiert gleiche Repräsentation im Kontext des LLM.
 
 ---
 
@@ -64,6 +102,8 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+> Benötigt Python 3.10+.
+
 ### 2. Umgebungsvariablen konfigurieren
 
 ```bash
@@ -79,12 +119,14 @@ Die Parteiprogramme werden vorab verarbeitet und als ChromaDB auf Disk gespeiche
 Endnutzer brauchen diesen Schritt nicht auszuführen.
 
 ```bash
-python -m backend.ingestion.pipeline --party SPD --file data/pdfs/spd_programm.pdf
-python -m backend.ingestion.pipeline --party CDU --file data/pdfs/cdu_programm.pdf
+python -m backend.ingestion.pipeline --party SPD    --file data/pdfs/spd_programm.pdf
+python -m backend.ingestion.pipeline --party Grüne  --file data/pdfs/gruene_programm.pdf
+python -m backend.ingestion.pipeline --party CDU    --file data/pdfs/cdu_programm.pdf
 # ... weitere Parteien
 ```
 
-Wird eine Partei erneut eingelesen, werden die alten Chunks automatisch ersetzt (Deduplizierung).
+Pro Partei wird automatisch ein Fact-Sheet unter `data/factsheets/` gespeichert.
+Wird eine Partei erneut eingelesen, werden die alten Chunks automatisch ersetzt.
 
 ---
 
@@ -113,23 +155,26 @@ streamlit run frontend/app.py
 Wahl_O_Mat_DEMO/
 ├── backend/
 │   ├── api/
-│   │   └── routes.py          # FastAPI-Endpunkte (/ingest, /query, /health)
+│   │   └── routes.py          # FastAPI-Endpunkte
 │   ├── ingestion/
 │   │   ├── pdf_loader.py      # PDF → LangChain Documents + Metadaten
 │   │   ├── chunker.py         # RecursiveCharacterTextSplitter
 │   │   ├── vector_store.py    # ChromaDB-Wrapper (add, delete, search)
-│   │   └── pipeline.py        # Orchestrierung: Delete → Load → Chunk → Store
+│   │   └── pipeline.py        # Orchestrierung: Delete → Load → Chunk → Store → Fact-Sheet
 │   ├── models/
 │   │   └── schemas.py         # Pydantic Request/Response-Modelle
 │   ├── rag/
-│   │   └── chain.py           # LCEL-Chain: HyDE → Retrieval → Antwort
+│   │   ├── chain.py           # LCEL-Chain: HyDE → Retrieval → Structured Answer
+│   │   ├── compare.py         # Parteienvergleich mit Stance Detection
+│   │   └── factsheet.py       # Fact-Sheet-Generierung bei Ingestion
 │   ├── config.py              # Zentrale Konfiguration via Pydantic Settings
 │   └── main.py                # FastAPI App-Instanz mit Lifespan-Hook
 ├── frontend/
-│   └── app.py                 # Streamlit-UI (Query + Filter)
+│   └── app.py                 # Streamlit-UI (Query-Tab + Vergleichs-Tab)
 ├── data/
 │   ├── pdfs/                  # Parteiprogramme als PDF (nicht im Repo)
-│   └── chroma_db/             # ChromaDB-Daten (nicht im Repo)
+│   ├── chroma_db/             # ChromaDB-Daten (nicht im Repo)
+│   └── factsheets/            # Generierte Fact-Sheets als JSON
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -140,11 +185,13 @@ Wahl_O_Mat_DEMO/
 
 ## API-Endpunkte
 
-| Methode | Pfad             | Beschreibung                                        |
-|---------|------------------|-----------------------------------------------------|
-| POST    | `/api/v1/ingest` | PDF einlesen (Admin/Dev – nicht in der UI)         |
-| POST    | `/api/v1/query`  | Frage stellen, Antwort mit Quellenangaben erhalten |
-| GET     | `/api/v1/health` | Liveness-Check                                      |
+| Methode | Pfad                      | Beschreibung                                             |
+|---------|---------------------------|----------------------------------------------------------|
+| POST    | `/api/v1/ingest`          | PDF einlesen (Admin/Dev – nicht in der UI)              |
+| POST    | `/api/v1/query`           | Frage stellen, strukturierte Antwort mit Quellen        |
+| POST    | `/api/v1/compare`         | Parteien vergleichen mit Stance-Klassifizierung         |
+| GET     | `/api/v1/factsheet/{party}` | Fact-Sheet einer Partei abrufen                       |
+| GET     | `/api/v1/health`          | Liveness-Check                                           |
 
 Vollständige Dokumentation: `http://localhost:8000/docs`
 
@@ -153,19 +200,37 @@ Vollständige Dokumentation: `http://localhost:8000/docs`
 ## Architektur-Entscheidungen
 
 **ChromaDB statt Qdrant/Pinecone**
-Bewusst für lokales Setup ohne externe Dienste gewählt. Der gesamte ChromaDB-Zugriff ist in `vector_store.py` hinter `add_chunks()`, `delete_party()` und `similarity_search()` gekapselt – ein Wechsel auf einen anderen Vector Store würde nur diese Datei betreffen.
+Bewusst für lokales Setup ohne externe Dienste gewählt. Der gesamte ChromaDB-Zugriff
+ist hinter `add_chunks()`, `delete_party()` und `similarity_search()` in `vector_store.py`
+gekapselt – ein Wechsel auf einen anderen Vector Store würde nur diese Datei betreffen.
 
 **Offline-Ingestion statt Live-Upload**
-Parteiprogramme werden einmalig vorab verarbeitet. Das reduziert Latenz und Kosten für Endnutzer und trennt den Dev-Workflow (Daten aufbereiten) klar vom User-Workflow (Daten abfragen).
+Parteiprogramme werden einmalig vorab verarbeitet. Das trennt den Dev-Workflow
+(Daten aufbereiten) klar vom User-Workflow (Daten abfragen) und reduziert
+Latenz und Kosten für Endnutzer.
 
 **HyDE vor dem Retrieval**
-Verbesserung der Retrieval-Qualität bei politischem Fachtext durch semantische Brücke zwischen Fragenformulierung und Programmtext. Trade-off: +1 LLM-Call pro Anfrage.
+Verbesserung der Retrieval-Qualität bei politischem Fachtext durch semantische
+Brücke zwischen Fragenformulierung und Programmtext. Trade-off: +1 LLM-Call pro Anfrage.
 
-**LCEL für die RAG-Chain**
-LangChain Expression Language erlaubt deklarative Komposition der Pipeline-Schritte (`prompt | llm | parser`). Einzelne Stufen (z.B. LLM-Modell, Output-Parser) lassen sich austauschen ohne die Orchestrierungslogik anzufassen.
+**Pro-Partei-Retrieval beim Vergleich**
+Statt eines globalen Top-K wird für jede Partei separat abgerufen. Garantiert gleiche
+Repräsentation unabhängig von Programmlänge oder Sprachdichte.
+
+**Stance Detection im selben LLM-Call wie der Vergleich**
+Kein separater Klassifizierungs-Prompt. Die Stance wird aus dem Kontext inline abgeleitet –
+spart einen LLM-Call und hält die Klassifizierung konsistent mit der generierten Position.
+
+**LCEL für die RAG-Chains**
+LangChain Expression Language erlaubt deklarative Komposition der Pipeline-Schritte
+(`prompt | llm | parser`). Einzelne Stufen lassen sich austauschen ohne die
+Orchestrierungslogik anzufassen.
 
 **Pydantic Settings als Single Source of Truth**
-Alle Konfigurationswerte (Modellnamen, Pfade, Chunking-Parameter) an einer Stelle, typisiert und validiert. `openai_api_key` als `SecretStr` verhindert versehentliches Loggen des Keys. Fehlt der Key beim Start, schlägt der Lifespan-Hook sofort fehl – kein stilles Versagen beim ersten API-Call.
+Alle Konfigurationswerte an einer Stelle, typisiert und validiert. `openai_api_key`
+als `SecretStr` verhindert versehentliches Loggen. Fehlt der Key beim Start,
+schlägt der Lifespan-Hook sofort fehl – kein stilles Versagen beim ersten API-Call.
 
 **Synchrone Endpunkte**
-FastAPI führt synchrone Endpunkte in einem Thread Pool aus. Für dieses Demo akzeptabel; für Production wäre async Ingestion mit `BackgroundTasks` der nächste Schritt.
+FastAPI führt synchrone Endpunkte in einem Thread Pool aus. Für dieses Demo
+akzeptabel; für Production wäre async Ingestion mit `BackgroundTasks` der nächste Schritt.
