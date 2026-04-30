@@ -74,8 +74,7 @@ def _sample_chunks(party: str, max_chunks: int = 20) -> list[str]:
     Holt eine gleichmäßige Stichprobe von Chunks aus ChromaDB.
     Verteilt die Auswahl über das gesamte Dokument statt nur den Anfang zu nehmen.
     """
-    collection = get_vector_store()._collection
-    result = collection.get(where={"party": party}, include=["documents"])
+    result = get_vector_store().get(where={"party": party}, include=["documents"])
     all_chunks: list[str] = result.get("documents") or []
 
     if not all_chunks:

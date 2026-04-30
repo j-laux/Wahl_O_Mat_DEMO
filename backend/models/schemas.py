@@ -18,7 +18,7 @@ class IngestResponse(BaseModel):
 
 
 class QueryRequest(BaseModel):
-    question: str = Field(..., description="Frage des Nutzers")
+    question: str = Field(..., min_length=1, max_length=500, description="Frage des Nutzers")
     parties: list[str] | None = Field(
         default=None,
         description="Filtert Ergebnisse auf diese Parteien. None = alle Parteien.",
@@ -47,7 +47,7 @@ class QueryResponse(BaseModel):
 # ── Phase 2: Parteienvergleich ────────────────────────────────────────────────
 
 class CompareRequest(BaseModel):
-    question: str = Field(..., description="Vergleichsfrage, z.B. 'Was planen die Parteien beim Klimaschutz?'")
+    question: str = Field(..., min_length=1, max_length=500, description="Vergleichsfrage, z.B. 'Was planen die Parteien beim Klimaschutz?'")
     parties: list[str] = Field(..., min_length=2, description="Mindestens 2 Parteien für den Vergleich")
     top_k_per_party: int = Field(default=3, ge=1, le=10, description="Chunks pro Partei")
 

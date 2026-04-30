@@ -82,6 +82,9 @@ def main() -> None:
         logger.error("Keine auswertbaren Fragen – Abbruch.")
         sys.exit(1)
 
+    # Hinweis: HyDE zieht bereits semantisch passende Chunks, was faithfulness
+    # tendenziell nach oben verzerrt. Der Score ist ein relativer Vergleichswert,
+    # kein absolutes Qualitätsmaß. answer_relevancy ist davon nicht betroffen.
     logger.info("Starte RAGAS-Evaluation (faithfulness + answer_relevancy) ...")
     dataset = Dataset.from_dict(rows)
     result = evaluate(dataset, metrics=[faithfulness, answer_relevancy])

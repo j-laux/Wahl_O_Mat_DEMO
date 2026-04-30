@@ -40,9 +40,9 @@ def ingest_pdf(request: IngestRequest) -> IngestResponse:
         stored = run_pipeline(party=request.party, file_path=request.file_path)
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
+    except Exception:
         logger.exception("Fehler bei der Ingestion")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Interner Fehler bei der Ingestion. Details im Server-Log.")
 
     return IngestResponse(
         party=request.party,
@@ -61,9 +61,9 @@ def query(request: QueryRequest) -> QueryResponse:
             top_k=request.top_k,
             party_filter=request.parties,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Fehler in der RAG-Chain")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Interner Fehler bei der Abfrage. Details im Server-Log.")
 
     if not docs:
         raise HTTPException(
@@ -96,9 +96,9 @@ def compare(request: CompareRequest) -> CompareResponse:
             parties=request.parties,
             top_k_per_party=request.top_k_per_party,
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Fehler in der Compare-Chain")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Interner Fehler beim Vergleich. Details im Server-Log.")
 
     if not party_docs:
         raise HTTPException(
