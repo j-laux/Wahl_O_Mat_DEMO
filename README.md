@@ -181,6 +181,40 @@ Wahl_O_Mat_DEMO/
 
 ---
 
+## Evaluation (RAGAS)
+
+Die Pipeline wird mit [RAGAS](https://github.com/explodinggradients/ragas) auf zwei Metriken evaluiert:
+
+| Metrik              | Beschreibung                                                     |
+|---------------------|------------------------------------------------------------------|
+| **faithfulness**    | Ist die Antwort in den abgerufenen Chunks verankert?            |
+| **answer_relevancy**| Beantwortet die Antwort die gestellte Frage?                    |
+
+Beide Metriken benötigen keine manuell erstellten Referenzantworten – nur Frage, Antwort und Kontext.
+
+**Testset:** 25 Fragen zu 10 Themen (Klimaschutz, Wirtschaft, Wohnen, Migration, Bildung, Rente,
+Digitalisierung, Europa, Sicherheit, Gesundheit) – Mix aus Einzelpartei-Filter und allen Parteien.
+
+**Ergebnisse** (Platzhalter – nach Evaluation eintragen):
+
+| Metrik              | Score |
+|---------------------|-------|
+| faithfulness        | –     |
+| answer_relevancy    | –     |
+
+### Evaluation ausführen
+
+```bash
+pip install -r requirements-eval.txt
+python -m evaluation.evaluate
+# Ergebnis: evaluation/results.json
+```
+
+> Vom Projektroot ausführen, damit `.env` und ChromaDB gefunden werden.
+> Benötigt alle Parteiprogramme in ChromaDB (ca. 50 LLM-Calls + RAGAS-Calls).
+
+---
+
 ## API-Endpunkte
 
 | Methode | Pfad                      | Beschreibung                                             |

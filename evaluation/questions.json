@@ -1,0 +1,102 @@
+[
+  {
+    "question": "Was plant die SPD zur Rente und Alterssicherung?",
+    "parties": ["SPD"]
+  },
+  {
+    "question": "Was sagen die Grünen zum Klimaschutz und CO2-Reduktion?",
+    "parties": ["Grüne"]
+  },
+  {
+    "question": "Wie steht die CDU/CSU zur Migrations- und Asylpolitik?",
+    "parties": ["CDU/CSU"]
+  },
+  {
+    "question": "Was plant die FDP beim Abbau von Steuern und Bürokratie?",
+    "parties": ["FDP"]
+  },
+  {
+    "question": "Was fordert die AfD in der Migrationspolitik?",
+    "parties": ["AfD"]
+  },
+  {
+    "question": "Was sagt die SPD zur Erhöhung des Mindestlohns?",
+    "parties": ["SPD"]
+  },
+  {
+    "question": "Was plant die Linke zur sozialen Gerechtigkeit und Umverteilung?",
+    "parties": ["Linke"]
+  },
+  {
+    "question": "Wie will das BSW die deutsche Außenpolitik gestalten?",
+    "parties": ["BSW"]
+  },
+  {
+    "question": "Was sagen die Grünen zur Bildungs- und Schulpolitik?",
+    "parties": ["Grüne"]
+  },
+  {
+    "question": "Was plant die CDU/CSU in der Wirtschafts- und Industriepolitik?",
+    "parties": ["CDU/CSU"]
+  },
+  {
+    "question": "Was sagt die AfD zur Energie- und Atompolitik?",
+    "parties": ["AfD"]
+  },
+  {
+    "question": "Was plant die Linke zu Mieten und bezahlbarem Wohnraum?",
+    "parties": ["Linke"]
+  },
+  {
+    "question": "Was plant die FDP zur Bildung, Forschung und Innovation?",
+    "parties": ["FDP"]
+  },
+  {
+    "question": "Was sagt die SPD zur Außenpolitik und zum Ukraine-Krieg?",
+    "parties": ["SPD"]
+  },
+  {
+    "question": "Wie wollen die Parteien den Wohnungsbau fördern?",
+    "parties": null
+  },
+  {
+    "question": "Was sagen die Parteien zur Digitalisierung der Verwaltung?",
+    "parties": null
+  },
+  {
+    "question": "Wie stehen die Parteien zu NATO, Bundeswehr und Verteidigungsausgaben?",
+    "parties": null
+  },
+  {
+    "question": "Was planen die Parteien für den Ausbau erneuerbarer Energien?",
+    "parties": null
+  },
+  {
+    "question": "Wie wollen die Parteien das Gesundheitssystem reformieren?",
+    "parties": null
+  },
+  {
+    "question": "Was sagen die Parteien zur Europäischen Union und europäischer Integration?",
+    "parties": null
+  },
+  {
+    "question": "Wie wollen die Parteien die innere Sicherheit und Polizei stärken?",
+    "parties": null
+  },
+  {
+    "question": "Was planen die Parteien zur Reform der Pflegeversicherung?",
+    "parties": null
+  },
+  {
+    "question": "Wie stehen die Parteien zu Künstlicher Intelligenz und Digitalpolitik?",
+    "parties": null
+  },
+  {
+    "question": "Was sagen die Parteien zur Landwirtschaft und zum ländlichen Raum?",
+    "parties": null
+  },
+  {
+    "question": "Wie wollen die Parteien Familien finanziell entlasten und Kinder fördern?",
+    "parties": null
+  }
+]
