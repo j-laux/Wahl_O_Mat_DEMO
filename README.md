@@ -1,5 +1,7 @@
 # Wahl-O-Mat DEMO
 
+[🇬🇧 English version](README.en.md)
+
 RAG-basierte Web-App zur Analyse deutscher Parteiprogramme zur **Bundestagswahl 2025**.
 Nutzer können Fragen zu politischen Themen stellen, Antworten mit Quellenangaben erhalten
 und die Positionen mehrerer Parteien strukturiert vergleichen – inklusive automatischer
