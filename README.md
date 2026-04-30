@@ -3,8 +3,6 @@
 RAG-basierte Web-App zur Analyse deutscher Parteiprogramme zur **Bundestagswahl 2025**.
 Nutzer können Fragen zu politischen Themen stellen und erhalten Antworten, die direkt aus den offiziellen Parteiprogrammen belegt sind – mit Quellenangaben (Partei + Seite).
 
-> **Portfolio-Projekt** – Fokus liegt auf der KI-Pipeline und der Architektur, nicht auf einem Produktlaunch.
-
 ---
 
 ## Architektur
