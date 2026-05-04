@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -32,7 +33,11 @@ from datasets import Dataset  # noqa: E402
 from ragas import evaluate  # noqa: E402
 from ragas.metrics import answer_relevancy, faithfulness  # noqa: E402
 
+from backend.config import get_settings  # noqa: E402
 from backend.rag.chain import run_rag  # noqa: E402
+
+# RAGAS initialisiert ChatOpenAI direkt über os.environ, nicht über Pydantic Settings
+os.environ.setdefault("OPENAI_API_KEY", get_settings().openai_api_key.get_secret_value())
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
