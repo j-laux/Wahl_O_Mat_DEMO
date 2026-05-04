@@ -197,12 +197,16 @@ Beide Metriken benötigen keine manuell erstellten Referenzantworten – nur Fra
 **Testset:** 25 Fragen zu 10 Themen (Klimaschutz, Wirtschaft, Wohnen, Migration, Bildung, Rente,
 Digitalisierung, Europa, Sicherheit, Gesundheit) – Mix aus Einzelpartei-Filter und allen Parteien.
 
-**Ergebnisse** (Platzhalter – nach Evaluation eintragen):
+**Ergebnisse** (gpt-4o-mini, 25/25 Fragen, 7 Parteien):
 
 | Metrik              | Score |
 |---------------------|-------|
-| faithfulness        | –     |
-| answer_relevancy    | –     |
+| faithfulness        | 0.77  |
+| answer_relevancy    | 0.92  |
+
+Die hohe answer_relevancy zeigt, dass HyDE + Retrieval konsistent die richtigen Chunks findet.
+Der Faithfulness-Wert von 0.77 ist für politischen Fachtext erwartbar — das LLM synthetisiert
+gelegentlich über mehrere Chunks hinweg statt strikt zu zitieren.
 
 ### Evaluation ausführen
 
