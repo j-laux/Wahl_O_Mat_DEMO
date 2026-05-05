@@ -1,11 +1,12 @@
 """
 FastAPI-Router: Endpunkte für Ingestion und Abfrage.
 
-/ingest           – Dev/Admin-Werkzeug zum Aufbau des Vector Stores (nicht in der UI)
-/query            – User-facing RAG-Abfrage mit HyDE + Structured Output
-/compare          – Parteienvergleich mit HyDE + Stance Detection
-/factsheet/{party}– Gibt das bei der Ingestion generierte Fact-Sheet zurück
-/health           – Liveness-Check
+/ingest              – Dev/Admin-Werkzeug zum Aufbau des Vector Stores (nicht in der UI)
+/query               – User-facing RAG-Abfrage mit HyDE + Structured Output
+/compare             – Parteienvergleich mit HyDE + Stance Detection
+/factsheet/{party}   – Gibt das bei der Ingestion generierte Fact-Sheet zurück
+/embeddings/map      – UMAP-reduzierte 2D-Koordinaten aller Chunk-Embeddings
+/health              – Liveness-Check
 """
 
 import logging
@@ -17,6 +18,7 @@ from backend.ingestion.pipeline import run_pipeline
 from backend.models.schemas import (
     CompareRequest,
     CompareResponse,
+    EmbeddingPoint,
     IngestRequest,
     IngestResponse,
     QueryRequest,
@@ -25,6 +27,7 @@ from backend.models.schemas import (
 )
 from backend.rag.chain import run_rag
 from backend.rag.compare import docs_to_sources, run_compare
+from backend.rag.embeddings_map import get_embedding_map
 from backend.rag.factsheet import FactSheet, load_factsheet
 
 logger = logging.getLogger(__name__)
@@ -124,6 +127,16 @@ def get_factsheet(party: str) -> FactSheet:
             detail=f"Kein Fact-Sheet für '{party}' gefunden. Bitte zuerst das PDF einlesen.",
         )
     return factsheet
+
+
+@router.get("/embeddings/map", response_model=list[EmbeddingPoint], tags=["Visualisierung"])
+def embeddings_map() -> list[EmbeddingPoint]:
+    """UMAP-reduzierte 2D-Koordinaten aller Chunk-Embeddings. Ergebnis wird serverseitig gecacht."""
+    try:
+        return get_embedding_map()
+    except Exception:
+        logger.exception("Fehler bei der Embedding-Visualisierung")
+        raise HTTPException(status_code=500, detail="Fehler beim Berechnen der Embedding-Karte. Details im Server-Log.")
 
 
 @router.get("/health", tags=["System"])

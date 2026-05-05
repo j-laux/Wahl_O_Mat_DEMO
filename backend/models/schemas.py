@@ -73,3 +73,12 @@ class CompareResponse(BaseModel):
     summary: str
     comparisons: list[PartyComparison]
     sources: list[SourceDocument]
+
+
+# ── Phase 3: Embedding-Visualisierung ────────────────────────────────────────
+
+class EmbeddingPoint(BaseModel):
+    x: float
+    y: float
+    party: str
+    preview: str

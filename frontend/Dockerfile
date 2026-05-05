@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir streamlit==1.* requests python-dotenv
+RUN pip install --no-cache-dir streamlit==1.* requests python-dotenv plotly pandas
 
 COPY frontend/ ./frontend/
 
