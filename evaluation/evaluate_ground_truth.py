@@ -95,7 +95,7 @@ def _collect_rows(entries: list[dict]) -> dict[str, list]:
         try:
             answer, docs = run_rag(
                 question=entry["question"],
-                top_k=5,
+                top_k=10,
                 party_filter=[entry["party"]],
             )
         except Exception as exc:
