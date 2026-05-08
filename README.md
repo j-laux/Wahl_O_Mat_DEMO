@@ -2,10 +2,15 @@
 
 [🇬🇧 English version](README.en.md)
 
-RAG-basierte Web-App zur Analyse deutscher Parteiprogramme zur **Bundestagswahl 2025**.
-Nutzer können Fragen zu politischen Themen stellen, Antworten mit Quellenangaben erhalten
-und die Positionen mehrerer Parteien strukturiert vergleichen – inklusive automatischer
-Stance-Klassifizierung (progressiv / konservativ / neutral).
+RAG-basierte Analyseplattform für die **Bundestagswahl 2025** – Version 1 eines mehrstufigen
+politischen Wissenssystems. Nutzer können Fragen zu politischen Themen stellen, Antworten
+mit Quellenangaben erhalten und die Positionen mehrerer Parteien strukturiert vergleichen –
+inklusive automatischer Stance-Klassifizierung (progressiv / konservativ / neutral).
+
+> **Vision:** Das System soll drei Wissensebenen zusammenführen: **(1) Wahlversprechen** aus
+> Parteiprogrammen (diese Version), **(2) Abstimmungsverhalten** via Abgeordnetenwatch und
+> **(3) aktuelle Rhetorik** aus Nachrichtenquellen – um Wählerinnen und Wählern ein vollständiges
+> Bild jenseits von Wahlkampf-Kommunikation zu geben.
 
 ---
 
@@ -175,6 +180,12 @@ Wahl_O_Mat_DEMO/
 │   ├── pdfs/                  # Parteiprogramme als PDF (nicht im Repo)
 │   ├── chroma_db/             # ChromaDB-Daten (nicht im Repo)
 │   └── factsheets/            # Generierte Fact-Sheets als JSON
+├── evaluation/
+│   ├── ground_truth/
+│   │   └── build_dataset.py   # BpB Excel → ground_truth.json (Datensatz gitignored)
+│   ├── evaluate.py            # RAGAS Eval 1: faithfulness + answer_relevancy
+│   ├── evaluate_ground_truth.py  # RAGAS Eval 2: 5 Metriken mit Ground Truth
+│   └── questions.json         # Testset für Eval 1
 ├── .env.example
 ├── .gitignore
 ├── requirements.txt
@@ -185,39 +196,62 @@ Wahl_O_Mat_DEMO/
 
 ## Evaluation (RAGAS)
 
-Die Pipeline wird mit [RAGAS](https://github.com/explodinggradients/ragas) auf zwei Metriken evaluiert:
+Die Pipeline wird auf zwei Ebenen mit [RAGAS](https://github.com/explodinggradients/ragas) evaluiert:
+eine allgemeine Qualitätsmessung und eine Ground-Truth-Validierung gegen offizielle Parteipositionierungen.
 
-| Metrik              | Beschreibung                                                     |
-|---------------------|------------------------------------------------------------------|
-| **faithfulness**    | Ist die Antwort in den abgerufenen Chunks verankert?            |
-| **answer_relevancy**| Beantwortet die Antwort die gestellte Frage?                    |
+### Eval 1 – Allgemeine Pipeline-Qualität
 
-Beide Metriken benötigen keine manuell erstellten Referenzantworten – nur Frage, Antwort und Kontext.
+Keine Referenzantworten nötig – nur Frage, Antwort und Kontext.
 
 **Testset:** 25 Fragen zu 10 Themen (Klimaschutz, Wirtschaft, Wohnen, Migration, Bildung, Rente,
 Digitalisierung, Europa, Sicherheit, Gesundheit) – Mix aus Einzelpartei-Filter und allen Parteien.
 
-**Ergebnisse** (gpt-4o-mini, 25/25 Fragen, 7 Parteien):
+| Metrik               | Score | Beschreibung                                              |
+|----------------------|-------|-----------------------------------------------------------|
+| **faithfulness**     | 0.77  | Ist die Antwort in den abgerufenen Chunks verankert?     |
+| **answer_relevancy** | 0.92  | Beantwortet die Antwort die gestellte Frage?             |
 
-| Metrik              | Score |
-|---------------------|-------|
-| faithfulness        | 0.77  |
-| answer_relevancy    | 0.92  |
-
-Die hohe answer_relevancy zeigt, dass HyDE + Retrieval konsistent die richtigen Chunks findet.
-Der Faithfulness-Wert von 0.77 ist für politischen Fachtext erwartbar — das LLM synthetisiert
+Die hohe answer_relevancy zeigt, dass HyDE + Retrieval konsistent thematisch passende Chunks findet.
+Der Faithfulness-Wert von 0.77 ist für politischen Fachtext erwartbar – das LLM synthetisiert
 gelegentlich über mehrere Chunks hinweg statt strikt zu zitieren.
-
-### Evaluation ausführen
 
 ```bash
 pip install -r requirements-eval.txt
 python -m evaluation.evaluate
-# Ergebnis: evaluation/results.json
+# → evaluation/results.json
 ```
 
-> Vom Projektroot ausführen, damit `.env` und ChromaDB gefunden werden.
-> Benötigt alle Parteiprogramme in ChromaDB (ca. 50 LLM-Calls + RAGAS-Calls).
+### Eval 2 – Ground-Truth-Validierung (Wahl-O-Mat Thesen)
+
+Validierung gegen den offiziellen BpB Wahl-O-Mat 2025 Datensatz: 38 politische Thesen mit
+den offiziellen Parteipositionierungen (stimme zu / neutral / stimme nicht zu) und Begründungen
+als Referenzantworten. Ermöglicht drei zusätzliche Metriken, die Retrieval-Qualität und
+inhaltliche Korrektheit direkt messen.
+
+**Ergebnisse** (gpt-4o-mini, n=35, stratifiziertes Sample 5 Thesen × 7 Parteien):
+
+| Metrik                  | Score | Beschreibung                                                  |
+|-------------------------|-------|---------------------------------------------------------------|
+| **faithfulness**        | 0.92  | Antwort in retrievten Chunks verankert                       |
+| **answer_relevancy**    | 0.74  | Antwort adressiert die gestellte Frage                       |
+| **context_precision**   | 0.75  | Retrievte Chunks sind für die Frage relevant                 |
+| **context_recall**      | 0.62  | Chunks decken die Ground-Truth-Information ab                |
+| **answer_correctness**  | 0.64  | Antwort stimmt mit offizieller Parteiposition überein        |
+
+**Interpretation:** `context_recall (0.62)` ist der schwächste Wert und der klare Optimierungspunkt:
+Die offiziellen Partei-Begründungen stecken teils in Chunks, die das Retrieval nicht priorisiert.
+Das ist die Zielgröße für die nächste Iteration (Section-aware Chunking, Hybrid Retrieval).
+`answer_correctness (0.64)` ist erwartbar moderat – die Ground Truth enthält präzise Kurzpositionen,
+das RAG antwortet ausführlicher.
+
+```bash
+python -m evaluation.evaluate_ground_truth --sample 35   # Dev-Run
+python -m evaluation.evaluate_ground_truth               # Vollständiger Lauf (38×7=266)
+# → evaluation/results_ground_truth.json
+```
+
+> *Ground Truth: © Bundeszentrale für politische Bildung. Datensatz nicht im Repo enthalten;
+> nur Analyseergebnisse werden veröffentlicht. Nutzung zu analytischen Zwecken gemäß BpB-Lizenz.*
 
 ---
 

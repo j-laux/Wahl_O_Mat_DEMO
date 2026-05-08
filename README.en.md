@@ -1,9 +1,14 @@
 # Wahl-O-Mat DEMO
 
-RAG-based web app for analysing German party manifestos for the **2025 federal election (Bundestagswahl 2025)**.
-Users can ask questions about political topics, receive answers with source references,
-and compare the positions of multiple parties in a structured format — including automatic
-stance classification (progressive / conservative / neutral).
+RAG-based analysis platform for the **2025 German federal election (Bundestagswahl 2025)** —
+Version 1 of a multi-layer political knowledge system. Users can ask questions about political
+topics, receive answers with source references, and compare the positions of multiple parties
+in a structured format — including automatic stance classification (progressive / conservative / neutral).
+
+> **Vision:** The system is designed to integrate three knowledge layers: **(1) electoral promises**
+> from party manifestos (this version), **(2) voting behaviour** via Abgeordnetenwatch, and
+> **(3) current rhetoric** from news sources — giving voters a complete picture beyond
+> campaign communications.
 
 ---
 
@@ -170,8 +175,11 @@ Wahl_O_Mat_DEMO/
 ├── frontend/
 │   └── app.py                 # Streamlit UI (Query tab + Comparison tab)
 ├── evaluation/
-│   ├── questions.json         # 25 test questions across 10 topics
-│   └── evaluate.py            # RAGAS evaluation script
+│   ├── ground_truth/
+│   │   └── build_dataset.py   # BpB Excel → ground_truth.json (dataset gitignored)
+│   ├── evaluate.py            # RAGAS Eval 1: faithfulness + answer_relevancy
+│   ├── evaluate_ground_truth.py  # RAGAS Eval 2: 5 metrics with ground truth
+│   └── questions.json         # Test set for Eval 1
 ├── data/
 │   ├── pdfs/                  # Party manifestos as PDFs (not in repo)
 │   ├── chroma_db/             # ChromaDB data (not in repo)
@@ -187,39 +195,61 @@ Wahl_O_Mat_DEMO/
 
 ## Evaluation (RAGAS)
 
-The pipeline is evaluated with [RAGAS](https://github.com/explodinggradients/ragas) on two metrics:
+The pipeline is evaluated at two levels using [RAGAS](https://github.com/explodinggradients/ragas):
+a general quality assessment and a ground-truth validation against official party positions.
 
-| Metric              | Description                                                       |
-|---------------------|-------------------------------------------------------------------|
-| **faithfulness**    | Is the answer grounded in the retrieved chunks?                   |
-| **answer_relevancy**| Does the answer actually address the question asked?              |
+### Eval 1 – General Pipeline Quality
 
-Both metrics require no manually created reference answers — only question, answer, and context.
+No reference answers required — only question, answer, and retrieved context.
 
 **Test set:** 25 questions across 10 topics (climate, economy, housing, migration, education, pensions,
 digitalisation, Europe, security, healthcare) — mix of single-party filter and all-party queries.
 
-**Results** (gpt-4o-mini, 25/25 questions, 7 parties):
+| Metric               | Score | Description                                               |
+|----------------------|-------|-----------------------------------------------------------|
+| **faithfulness**     | 0.77  | Is the answer grounded in the retrieved chunks?          |
+| **answer_relevancy** | 0.92  | Does the answer actually address the question asked?     |
 
-| Metric              | Score |
-|---------------------|-------|
-| faithfulness        | 0.77  |
-| answer_relevancy    | 0.92  |
-
-The high answer_relevancy confirms that HyDE + retrieval consistently pulls the right chunks.
+The high answer_relevancy confirms that HyDE + retrieval consistently pulls thematically relevant chunks.
 The faithfulness score of 0.77 is expected for dense political text — the LLM occasionally
 synthesises across chunks rather than citing strictly.
-
-### Run the evaluation
 
 ```bash
 pip install -r requirements-eval.txt
 python -m evaluation.evaluate
-# Output: evaluation/results.json
+# → evaluation/results.json
 ```
 
-> Run from the project root so that `.env` and ChromaDB are found.
-> Requires all party manifestos to be ingested into ChromaDB (~50 LLM calls + RAGAS calls).
+### Eval 2 – Ground-Truth Validation (Wahl-O-Mat Theses)
+
+Validation against the official BpB Wahl-O-Mat 2025 dataset: 38 political theses with official
+party positions (agree / neutral / disagree) and reasoning as reference answers. Enables three
+additional metrics that directly measure retrieval quality and factual correctness.
+
+**Results** (gpt-4o-mini, n=35, stratified sample 5 theses × 7 parties):
+
+| Metric                  | Score | Description                                                   |
+|-------------------------|-------|---------------------------------------------------------------|
+| **faithfulness**        | 0.92  | Answer grounded in retrieved chunks                          |
+| **answer_relevancy**    | 0.74  | Answer addresses the question asked                          |
+| **context_precision**   | 0.75  | Retrieved chunks are relevant to the question                |
+| **context_recall**      | 0.62  | Chunks cover the information present in the ground truth     |
+| **answer_correctness**  | 0.64  | Answer aligns with the official party position               |
+
+**Key finding:** `context_recall (0.62)` is the weakest metric and the clear optimisation target:
+the official party reasoning is often located in chunks the retrieval does not prioritise.
+This is the benchmark for the next iteration (section-aware chunking, hybrid retrieval).
+`answer_correctness (0.64)` is moderately low as expected — the ground truth contains precise
+official positions while the RAG produces more elaborate prose answers.
+
+```bash
+python -m evaluation.evaluate_ground_truth --sample 35   # dev run
+python -m evaluation.evaluate_ground_truth               # full run (38×7=266)
+# → evaluation/results_ground_truth.json
+```
+
+> *Ground truth: © Bundeszentrale für politische Bildung. Dataset not included in this repository;
+> only analysis results are published. Use for analytical purposes in accordance with the BpB licence.*
 
 ---
 
