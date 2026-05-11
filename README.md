@@ -241,18 +241,31 @@ OpenAI-Embedding ist `text-embedding-3-small`. Der e5-Lauf wurde mit den vom Mod
 Instruction-Prefixen (`"query: "` / `"passage: "`) durchgeführt und gegen eine frisch ingestierte
 ChromaDB ausgewertet (vorheriger Lauf ohne Prefixe wurde als invalid verworfen).
 
-**Interpretation:** Drei Iterationen zeigen, dass `context_recall` bei OpenAI-Embeddings unabhängig
-von Top-K und Chunking-Strategie in einem engen Band um ~0.62 verharrt. Der Wechsel auf
-`multilingual-e5-large` hat die Hypothese "Embedding-Alignment ist der Bottleneck" sauber
-falsifiziert: `context_recall` fällt auf 0.54, `answer_correctness` halbiert sich auf 0.28.
-Plausibler Grund: e5-large ist primär auf cross-linguales Retrieval optimiert, während
-`text-embedding-3-small` auf einem stark deutschsprachigen Korpus mittrainiert wurde und die
-sprachliche Lücke zwischen BpB-Begründungen und Wahlprogramm-Fließtext besser überbrückt.
-Die natürliche Decke für diesen Retrieval-Setup scheint bei `ctx_recall ≈ 0.62` zu liegen;
-weitere Verbesserung wäre wahrscheinlich nur durch Cross-Encoder-Reranking oder ein
-deutsch-spezifisches Embedding-Modell erreichbar.
-`answer_correctness (0.64)` ist erwartbar moderat — die Ground Truth enthält präzise
-Kurzpositionen, das RAG antwortet ausführlicher.
+**Interpretation:** Die drei OpenAI-Varianten liegen bei `context_recall` so eng beieinander
+(0.608 – 0.625), dass die Unterschiede ohne Bootstrap-Konfidenzintervalle bei n=35 plausibel im
+LLM-Judge-Rauschen liegen — eine Aussage "Top-K oder Section-aware Chunking bewegt
+`context_recall`" lässt sich aus diesen Daten **nicht** belegen. Der Wechsel auf
+`multilingual-e5-large` zeigt einen deutlich größeren Effekt (Δ `context_recall` ≈ −0.086,
+Δ `answer_correctness` ≈ −0.36), der die typische Judge-Varianz übersteigt, aber ohne CIs
+formal nicht abgesichert ist. Plausibler Grund für die Unterlegenheit: e5-large ist primär auf
+cross-linguales Retrieval optimiert, während `text-embedding-3-small` auf einem stark
+deutschsprachigen Korpus trainiert wurde. Belegbar ist nur: **ein konkreter multilingualer
+Embedder verbessert in dieser Konfiguration nichts** — die allgemeine Hypothese
+"Embedding-Alignment ist der Bottleneck" bleibt damit offen.
+
+**Bekannte methodische Limitationen** (offene Roadmap):
+- n=35 ist statistisch dünn; Bootstrap-CIs auf die Per-Row-Scores fehlen.
+- LLM-Judge-Varianz wurde nicht durch Mehrfachläufe gemessen.
+- Die Frageformulierung verwirft den These-Text und fragt generisch
+  „Was ist die Position der {Partei} zum Thema {Titel}?" — der Gap zwischen breiter Frage
+  und spezifischer BpB-Begründung erklärt vermutlich einen Teil des ~0.62-Niveaus bei
+  `context_recall`.
+- `answer_correctness` vergleicht ausführlichen RAG-Fließtext gegen formelhafte BpB-Kurzbegründung —
+  der Wert (~0.64 bei Baseline) misst auch eine semantisch unfaire Vergleichsbasis, nicht reine
+  Korrektheit. Eine Stance-Accuracy (zu / neutral / nicht zu) als kategoriale Metrik fehlt bisher.
+- Faithfulness ist durch HyDE strukturell aufgebläht; eine Ablation mit/ohne HyDE fehlt.
+- Die vier Varianten variieren nicht-orthogonal (kein Section-aware × k=10, kein e5 × k=10) —
+  Effekte können nicht sauber isoliert werden.
 
 ```bash
 python -m evaluation.evaluate_ground_truth --sample 35   # Dev-Run

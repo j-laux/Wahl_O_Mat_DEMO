@@ -239,17 +239,29 @@ OpenAI embedding is `text-embedding-3-small`. The e5 run uses the instruction pr
 (`"query: "` / `"passage: "`) required by the model and was evaluated against a freshly
 re-ingested ChromaDB (an earlier run without prefixes was discarded as invalid).
 
-**Key finding:** Three iterations show that with OpenAI embeddings, `context_recall` stays in a
-narrow band around ~0.62 regardless of top-K or chunking strategy. Swapping to
-`multilingual-e5-large` cleanly **falsified** the hypothesis that embedding alignment was the
-bottleneck: `context_recall` dropped to 0.54 and `answer_correctness` halved to 0.28. Plausible
-reason: e5-large is primarily optimised for cross-lingual retrieval, whereas
-`text-embedding-3-small` was trained on a heavily German-inclusive corpus and bridges the
-stylistic gap between BpB reference answers and manifesto prose more effectively. The natural
-ceiling for this retrieval setup appears to be around `ctx_recall ≈ 0.62`; further improvement
-would likely require cross-encoder reranking or a German-specific embedding model.
-`answer_correctness (0.64)` is moderately low as expected — the ground truth contains precise
-official positions while the RAG produces more elaborate prose answers.
+**Interpretation:** The three OpenAI variants sit so close together on `context_recall`
+(0.608 – 0.625) that, at n=35 and without bootstrap confidence intervals, the differences are
+plausibly within LLM-judge noise — these data **do not support** the claim that top-K or
+section-aware chunking moves `context_recall`. The switch to `multilingual-e5-large` shows a
+much larger effect (Δ `context_recall` ≈ −0.086, Δ `answer_correctness` ≈ −0.36) that exceeds
+typical judge variance, but is not formally certified without CIs. Plausible reason: e5-large is
+primarily optimised for cross-lingual retrieval, whereas `text-embedding-3-small` was trained on
+a heavily German-inclusive corpus. What these data actually support is: **one specific
+multilingual embedder does not improve this configuration** — the broader hypothesis that
+embedding alignment is the bottleneck remains open.
+
+**Known methodological limitations** (open roadmap):
+- n=35 is statistically thin; bootstrap CIs on per-row scores are missing.
+- LLM-judge variance has not been measured via repeated runs.
+- The question template discards the thesis text and asks the generic form
+  "What is the position of {party} on the topic {title}?" — the gap between this broad question
+  and the specific BpB reasoning probably accounts for part of the ~0.62 `context_recall` ceiling.
+- `answer_correctness` compares verbose RAG prose against terse BpB official reasoning — the
+  baseline value (~0.64) partly reflects a semantically unfair comparison rather than pure
+  correctness. A categorical stance-accuracy metric (agree / neutral / disagree) is still missing.
+- Faithfulness is structurally inflated by HyDE; an ablation with/without HyDE is missing.
+- The four variants vary non-orthogonally (no section-aware × k=10, no e5 × k=10) — effects
+  cannot be cleanly isolated.
 
 ```bash
 python -m evaluation.evaluate_ground_truth --sample 35   # dev run
