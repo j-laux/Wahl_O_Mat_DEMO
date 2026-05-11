@@ -228,21 +228,21 @@ den offiziellen Parteipositionierungen (stimme zu / neutral / stimme nicht zu) u
 als Referenzantworten. Ermöglicht drei zusätzliche Metriken, die Retrieval-Qualität und
 inhaltliche Korrektheit direkt messen.
 
-**Ergebnisse** (gpt-4o-mini, n=35, stratifiziertes Sample 5 Thesen × 7 Parteien):
+**Experiment-Ergebnisse** (gpt-4o-mini, n=35, stratifiziertes Sample 5 Thesen × 7 Parteien):
 
-| Metrik                  | Score | Beschreibung                                                  |
-|-------------------------|-------|---------------------------------------------------------------|
-| **faithfulness**        | 0.92  | Antwort in retrievten Chunks verankert                       |
-| **answer_relevancy**    | 0.74  | Antwort adressiert die gestellte Frage                       |
-| **context_precision**   | 0.75  | Retrievte Chunks sind für die Frage relevant                 |
-| **context_recall**      | 0.62  | Chunks decken die Ground-Truth-Information ab                |
-| **answer_correctness**  | 0.64  | Antwort stimmt mit offizieller Parteiposition überein        |
+| Variante                       | faithfulness | answer_relevancy | ctx_precision | ctx_recall | answer_correctness |
+|--------------------------------|-------------|-----------------|--------------|-----------|-------------------|
+| RecursiveSplit k=5 (Baseline)  | 0.919       | 0.738           | 0.746        | 0.621     | 0.641             |
+| RecursiveSplit k=10            | 0.959       | 0.764           | 0.746        | 0.625     | 0.611             |
+| Section-aware Chunking k=5     | 0.939       | 0.767           | **0.760**    | 0.608     | 0.606             |
 
-**Interpretation:** `context_recall (0.62)` ist der schwächste Wert und der klare Optimierungspunkt:
-Die offiziellen Partei-Begründungen stecken teils in Chunks, die das Retrieval nicht priorisiert.
-Das ist die Zielgröße für die nächste Iteration (Section-aware Chunking, Hybrid Retrieval).
-`answer_correctness (0.64)` ist erwartbar moderat – die Ground Truth enthält präzise Kurzpositionen,
-das RAG antwortet ausführlicher.
+**Interpretation:** `context_recall` reagiert weder auf mehr Chunks (k=10) noch auf section-aware
+Chunking — alle drei Varianten liegen bei ~0.62. Das schließt chunk-seitige Ursachen weitgehend aus.
+Der wahrscheinliche Bottleneck liegt im **Embedding-Alignment**: Die BpB-Begründungen sind in
+einem formellen Stil verfasst, der vom Fließtext der Wahlprogramme abweicht. HyDE überbrückt
+diese Lücke teilweise, aber nicht vollständig. Nächste Iterationen: multilingualer Embedding-Wechsel
+oder Cross-Encoder-Reranking. `answer_correctness (0.64)` ist erwartbar moderat – die Ground Truth
+enthält präzise Kurzpositionen, das RAG antwortet ausführlicher.
 
 ```bash
 python -m evaluation.evaluate_ground_truth --sample 35   # Dev-Run

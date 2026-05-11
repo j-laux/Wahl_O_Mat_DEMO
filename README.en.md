@@ -226,21 +226,21 @@ Validation against the official BpB Wahl-O-Mat 2025 dataset: 38 political theses
 party positions (agree / neutral / disagree) and reasoning as reference answers. Enables three
 additional metrics that directly measure retrieval quality and factual correctness.
 
-**Results** (gpt-4o-mini, n=35, stratified sample 5 theses × 7 parties):
+**Experiment results** (gpt-4o-mini, n=35, stratified sample 5 theses × 7 parties):
 
-| Metric                  | Score | Description                                                   |
-|-------------------------|-------|---------------------------------------------------------------|
-| **faithfulness**        | 0.92  | Answer grounded in retrieved chunks                          |
-| **answer_relevancy**    | 0.74  | Answer addresses the question asked                          |
-| **context_precision**   | 0.75  | Retrieved chunks are relevant to the question                |
-| **context_recall**      | 0.62  | Chunks cover the information present in the ground truth     |
-| **answer_correctness**  | 0.64  | Answer aligns with the official party position               |
+| Variant                        | faithfulness | answer_relevancy | ctx_precision | ctx_recall | answer_correctness |
+|--------------------------------|-------------|-----------------|--------------|-----------|-------------------|
+| RecursiveSplit k=5 (baseline)  | 0.919       | 0.738           | 0.746        | 0.621     | 0.641             |
+| RecursiveSplit k=10            | 0.959       | 0.764           | 0.746        | 0.625     | 0.611             |
+| Section-aware chunking k=5     | 0.939       | 0.767           | **0.760**    | 0.608     | 0.606             |
 
-**Key finding:** `context_recall (0.62)` is the weakest metric and the clear optimisation target:
-the official party reasoning is often located in chunks the retrieval does not prioritise.
-This is the benchmark for the next iteration (section-aware chunking, hybrid retrieval).
-`answer_correctness (0.64)` is moderately low as expected — the ground truth contains precise
-official positions while the RAG produces more elaborate prose answers.
+**Key finding:** `context_recall` is stable at ~0.62 across all three variants — neither increasing
+retrieval depth (k=10) nor section-aware chunking moved the needle. This rules out chunk boundary
+issues as the root cause. The likely bottleneck is **embedding alignment**: the BpB reference
+answers use formal official language that differs stylistically from the manifesto prose, and
+HyDE only partially bridges this gap. Next iterations: multilingual embedding model or
+cross-encoder reranking. `answer_correctness (0.64)` is moderately low as expected — the ground
+truth contains precise official positions while the RAG produces more elaborate prose answers.
 
 ```bash
 python -m evaluation.evaluate_ground_truth --sample 35   # dev run
