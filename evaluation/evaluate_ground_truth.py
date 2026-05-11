@@ -35,14 +35,13 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from datasets import Dataset
-from ragas import evaluate
+from ragas import EvaluationDataset, SingleTurnSample, evaluate
 from ragas.metrics import (
-    answer_correctness,
-    answer_relevancy,
-    context_precision,
-    context_recall,
-    faithfulness,
+    FactualCorrectness,
+    Faithfulness,
+    LLMContextPrecisionWithReference,
+    LLMContextRecall,
+    ResponseRelevancy,
 )
 
 from backend.config import get_settings
@@ -138,24 +137,36 @@ def main() -> None:
         sys.exit(1)
 
     logger.info("Starte RAGAS-Evaluation (5 Metriken) ...")
-    dataset = Dataset.from_dict(rows)
+    samples = [
+        SingleTurnSample(
+            user_input=q,
+            response=a,
+            retrieved_contexts=c,
+            reference=gt,
+        )
+        for q, a, c, gt in zip(
+            rows["question"], rows["answer"], rows["contexts"], rows["ground_truth"]
+        )
+    ]
+    dataset = EvaluationDataset(samples=samples)
     result = evaluate(
         dataset,
         metrics=[
-            faithfulness,
-            answer_relevancy,
-            context_precision,
-            context_recall,
-            answer_correctness,
+            Faithfulness(),
+            ResponseRelevancy(),
+            LLMContextPrecisionWithReference(),
+            LLMContextRecall(),
+            FactualCorrectness(),
         ],
     )
+    df = result.to_pandas()
 
     scores = {
-        "faithfulness": round(float(result["faithfulness"]), 4),
-        "answer_relevancy": round(float(result["answer_relevancy"]), 4),
-        "context_precision": round(float(result["context_precision"]), 4),
-        "context_recall": round(float(result["context_recall"]), 4),
-        "answer_correctness": round(float(result["answer_correctness"]), 4),
+        "faithfulness": round(df["faithfulness"].mean(), 4),
+        "answer_relevancy": round(df["answer_relevancy"].mean(), 4),
+        "context_precision": round(df["llm_context_precision_with_reference"].mean(), 4),
+        "context_recall": round(df["context_recall"].mean(), 4),
+        "answer_correctness": round(df["factual_correctness(mode=f1)"].mean(), 4),
         "n_evaluated": n,
         "n_total": len(entries),
         "sample": args.sample,

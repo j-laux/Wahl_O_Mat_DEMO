@@ -230,19 +230,29 @@ inhaltliche Korrektheit direkt messen.
 
 **Experiment-Ergebnisse** (gpt-4o-mini, n=35, stratifiziertes Sample 5 Thesen × 7 Parteien):
 
-| Variante                       | faithfulness | answer_relevancy | ctx_precision | ctx_recall | answer_correctness |
-|--------------------------------|-------------|-----------------|--------------|-----------|-------------------|
-| RecursiveSplit k=5 (Baseline)  | 0.919       | 0.738           | 0.746        | 0.621     | 0.641             |
-| RecursiveSplit k=10            | 0.959       | 0.764           | 0.746        | 0.625     | 0.611             |
-| Section-aware Chunking k=5     | 0.939       | 0.767           | **0.760**    | 0.608     | 0.606             |
+| Variante                                          | faithfulness | answer_relevancy | ctx_precision | ctx_recall | answer_correctness |
+|---------------------------------------------------|-------------|-----------------|--------------|-----------|-------------------|
+| RecursiveSplit k=5 + OpenAI (Baseline)            | 0.919       | 0.738           | 0.746        | **0.621** | **0.641**         |
+| RecursiveSplit k=10 + OpenAI                      | 0.959       | 0.764           | 0.746        | 0.625     | 0.611             |
+| Section-aware Chunking k=5 + OpenAI               | 0.939       | **0.767**       | **0.760**    | 0.608     | 0.606             |
+| RecursiveSplit k=5 + multilingual-e5-large        | **0.969**   | 0.720           | 0.700        | 0.536     | 0.281             |
 
-**Interpretation:** `context_recall` reagiert weder auf mehr Chunks (k=10) noch auf section-aware
-Chunking — alle drei Varianten liegen bei ~0.62. Das schließt chunk-seitige Ursachen weitgehend aus.
-Der wahrscheinliche Bottleneck liegt im **Embedding-Alignment**: Die BpB-Begründungen sind in
-einem formellen Stil verfasst, der vom Fließtext der Wahlprogramme abweicht. HyDE überbrückt
-diese Lücke teilweise, aber nicht vollständig. Nächste Iterationen: multilingualer Embedding-Wechsel
-oder Cross-Encoder-Reranking. `answer_correctness (0.64)` ist erwartbar moderat – die Ground Truth
-enthält präzise Kurzpositionen, das RAG antwortet ausführlicher.
+OpenAI-Embedding ist `text-embedding-3-small`. Der e5-Lauf wurde mit den vom Modell geforderten
+Instruction-Prefixen (`"query: "` / `"passage: "`) durchgeführt und gegen eine frisch ingestierte
+ChromaDB ausgewertet (vorheriger Lauf ohne Prefixe wurde als invalid verworfen).
+
+**Interpretation:** Drei Iterationen zeigen, dass `context_recall` bei OpenAI-Embeddings unabhängig
+von Top-K und Chunking-Strategie in einem engen Band um ~0.62 verharrt. Der Wechsel auf
+`multilingual-e5-large` hat die Hypothese "Embedding-Alignment ist der Bottleneck" sauber
+falsifiziert: `context_recall` fällt auf 0.54, `answer_correctness` halbiert sich auf 0.28.
+Plausibler Grund: e5-large ist primär auf cross-linguales Retrieval optimiert, während
+`text-embedding-3-small` auf einem stark deutschsprachigen Korpus mittrainiert wurde und die
+sprachliche Lücke zwischen BpB-Begründungen und Wahlprogramm-Fließtext besser überbrückt.
+Die natürliche Decke für diesen Retrieval-Setup scheint bei `ctx_recall ≈ 0.62` zu liegen;
+weitere Verbesserung wäre wahrscheinlich nur durch Cross-Encoder-Reranking oder ein
+deutsch-spezifisches Embedding-Modell erreichbar.
+`answer_correctness (0.64)` ist erwartbar moderat — die Ground Truth enthält präzise
+Kurzpositionen, das RAG antwortet ausführlicher.
 
 ```bash
 python -m evaluation.evaluate_ground_truth --sample 35   # Dev-Run

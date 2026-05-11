@@ -2,6 +2,13 @@
 Vector Store: Wrapper um ChromaDB via LangChain.
 Stellt add_chunks() und similarity_search() bereit.
 Der Rest der App kennt keine ChromaDB-Details.
+
+Embedding-Provider wird via EMBEDDING_PROVIDER in .env gesteuert:
+  EMBEDDING_PROVIDER=openai        → OpenAI text-embedding-*  (Standard)
+  EMBEDDING_PROVIDER=huggingface   → lokales HuggingFace-Modell via sentence-transformers
+
+Achtung: Bei Wechsel des Providers oder Modells muss ChromaDB neu ingestiert werden,
+da jedes Modell eine andere Vektordimension erzeugt.
 """
 
 import logging
@@ -9,24 +16,55 @@ from functools import lru_cache
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
 
-from backend.config import get_settings
+from backend.config import Settings, get_settings
 
 logger = logging.getLogger(__name__)
+
+
+def _get_embeddings(settings: Settings) -> Embeddings:
+    """Factory: gibt das konfigurierte Embedding-Objekt zurück."""
+    if settings.embedding_provider == "huggingface":
+        from langchain_huggingface import HuggingFaceEmbeddings
+
+        encode_kwargs: dict = {"normalize_embeddings": True}
+        query_encode_kwargs: dict = {"normalize_embeddings": True}
+
+        # Die E5-Modellfamilie erwartet feste Instruction-Prefixe an Query und Passage.
+        # Ohne diese Prefixe sind die Embeddings semantisch unbrauchbar.
+        # Quelle: https://huggingface.co/intfloat/multilingual-e5-large
+        if "e5" in settings.embedding_model.lower():
+            encode_kwargs["prompt"] = "passage: "
+            query_encode_kwargs["prompt"] = "query: "
+
+        logger.info(
+            "Embeddings: HuggingFace '%s' (encode_kwargs=%s, query_encode_kwargs=%s)",
+            settings.embedding_model,
+            encode_kwargs,
+            query_encode_kwargs,
+        )
+        return HuggingFaceEmbeddings(
+            model_name=settings.embedding_model,
+            encode_kwargs=encode_kwargs,
+            query_encode_kwargs=query_encode_kwargs,
+        )
+
+    logger.info("Embeddings: OpenAI '%s'", settings.embedding_model)
+    return OpenAIEmbeddings(
+        model=settings.embedding_model,
+        api_key=settings.openai_api_key.get_secret_value(),
+    )
 
 
 @lru_cache(maxsize=1)
 def get_vector_store() -> Chroma:
     """Gibt die ChromaDB-Collection zurück (Singleton, einmalig initialisiert)."""
     settings = get_settings()
-    embeddings = OpenAIEmbeddings(
-        model=settings.embedding_model,
-        api_key=settings.openai_api_key.get_secret_value(),
-    )
     return Chroma(
         collection_name=settings.chroma_collection_name,
-        embedding_function=embeddings,
+        embedding_function=_get_embeddings(settings),
         persist_directory=settings.chroma_db_path,
     )
 

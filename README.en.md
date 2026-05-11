@@ -228,19 +228,28 @@ additional metrics that directly measure retrieval quality and factual correctne
 
 **Experiment results** (gpt-4o-mini, n=35, stratified sample 5 theses × 7 parties):
 
-| Variant                        | faithfulness | answer_relevancy | ctx_precision | ctx_recall | answer_correctness |
-|--------------------------------|-------------|-----------------|--------------|-----------|-------------------|
-| RecursiveSplit k=5 (baseline)  | 0.919       | 0.738           | 0.746        | 0.621     | 0.641             |
-| RecursiveSplit k=10            | 0.959       | 0.764           | 0.746        | 0.625     | 0.611             |
-| Section-aware chunking k=5     | 0.939       | 0.767           | **0.760**    | 0.608     | 0.606             |
+| Variant                                           | faithfulness | answer_relevancy | ctx_precision | ctx_recall | answer_correctness |
+|---------------------------------------------------|-------------|-----------------|--------------|-----------|-------------------|
+| RecursiveSplit k=5 + OpenAI (baseline)            | 0.919       | 0.738           | 0.746        | **0.621** | **0.641**         |
+| RecursiveSplit k=10 + OpenAI                      | 0.959       | 0.764           | 0.746        | 0.625     | 0.611             |
+| Section-aware chunking k=5 + OpenAI               | 0.939       | **0.767**       | **0.760**    | 0.608     | 0.606             |
+| RecursiveSplit k=5 + multilingual-e5-large        | **0.969**   | 0.720           | 0.700        | 0.536     | 0.281             |
 
-**Key finding:** `context_recall` is stable at ~0.62 across all three variants — neither increasing
-retrieval depth (k=10) nor section-aware chunking moved the needle. This rules out chunk boundary
-issues as the root cause. The likely bottleneck is **embedding alignment**: the BpB reference
-answers use formal official language that differs stylistically from the manifesto prose, and
-HyDE only partially bridges this gap. Next iterations: multilingual embedding model or
-cross-encoder reranking. `answer_correctness (0.64)` is moderately low as expected — the ground
-truth contains precise official positions while the RAG produces more elaborate prose answers.
+OpenAI embedding is `text-embedding-3-small`. The e5 run uses the instruction prefixes
+(`"query: "` / `"passage: "`) required by the model and was evaluated against a freshly
+re-ingested ChromaDB (an earlier run without prefixes was discarded as invalid).
+
+**Key finding:** Three iterations show that with OpenAI embeddings, `context_recall` stays in a
+narrow band around ~0.62 regardless of top-K or chunking strategy. Swapping to
+`multilingual-e5-large` cleanly **falsified** the hypothesis that embedding alignment was the
+bottleneck: `context_recall` dropped to 0.54 and `answer_correctness` halved to 0.28. Plausible
+reason: e5-large is primarily optimised for cross-lingual retrieval, whereas
+`text-embedding-3-small` was trained on a heavily German-inclusive corpus and bridges the
+stylistic gap between BpB reference answers and manifesto prose more effectively. The natural
+ceiling for this retrieval setup appears to be around `ctx_recall ≈ 0.62`; further improvement
+would likely require cross-encoder reranking or a German-specific embedding model.
+`answer_correctness (0.64)` is moderately low as expected — the ground truth contains precise
+official positions while the RAG produces more elaborate prose answers.
 
 ```bash
 python -m evaluation.evaluate_ground_truth --sample 35   # dev run

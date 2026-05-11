@@ -14,6 +14,10 @@ langchain==0.3.13
 langchain-openai==0.3.0
 langchain-chroma==0.1.4
 langchain-community==0.3.13
+langchain-huggingface>=0.1.0,<1.0.0
+
+# HuggingFace Embeddings (nur bei EMBEDDING_PROVIDER=huggingface benötigt)
+sentence-transformers>=2.2.2
 
 # Vector Store
 chromadb==0.5.23

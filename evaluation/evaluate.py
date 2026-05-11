@@ -29,9 +29,8 @@ except ImportError:
 # Projektroot ins sys.path, damit `backend` importierbar ist
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from datasets import Dataset  # noqa: E402
-from ragas import evaluate  # noqa: E402
-from ragas.metrics import answer_relevancy, faithfulness  # noqa: E402
+from ragas import EvaluationDataset, SingleTurnSample, evaluate  # noqa: E402
+from ragas.metrics import Faithfulness, ResponseRelevancy  # noqa: E402
 
 from backend.config import get_settings  # noqa: E402
 from backend.rag.chain import run_rag  # noqa: E402
@@ -91,12 +90,21 @@ def main() -> None:
     # tendenziell nach oben verzerrt. Der Score ist ein relativer Vergleichswert,
     # kein absolutes Qualitätsmaß. answer_relevancy ist davon nicht betroffen.
     logger.info("Starte RAGAS-Evaluation (faithfulness + answer_relevancy) ...")
-    dataset = Dataset.from_dict(rows)
-    result = evaluate(dataset, metrics=[faithfulness, answer_relevancy])
+    samples = [
+        SingleTurnSample(
+            user_input=q,
+            response=a,
+            retrieved_contexts=c,
+        )
+        for q, a, c in zip(rows["question"], rows["answer"], rows["contexts"])
+    ]
+    dataset = EvaluationDataset(samples=samples)
+    result = evaluate(dataset, metrics=[Faithfulness(), ResponseRelevancy()])
+    df = result.to_pandas()
 
     scores = {
-        "faithfulness": round(float(result["faithfulness"]), 4),
-        "answer_relevancy": round(float(result["answer_relevancy"]), 4),
+        "faithfulness": round(df["faithfulness"].mean(), 4),
+        "answer_relevancy": round(df["answer_relevancy"].mean(), 4),
         "n_evaluated": n,
         "n_total": len(questions),
     }

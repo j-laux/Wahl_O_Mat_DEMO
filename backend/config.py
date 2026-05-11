@@ -12,6 +12,7 @@ Verwendung im Code:
 """
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -28,6 +29,9 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr
 
     # Embeddings & LLM
+    # Achtung: Bei Wechsel des Embedding-Providers oder -Modells muss ChromaDB
+    # komplett neu ingestiert werden (Vektordimensionen sind provider-spezifisch).
+    embedding_provider: Literal["openai", "huggingface"] = "openai"
     embedding_model: str = "text-embedding-3-small"
     llm_model: str = "gpt-4o-mini"
     llm_temperature: float = 0.0  # 0 = deterministisch, besser für faktische Q&A
