@@ -122,8 +122,17 @@ dass Eval als kontinuierlicher Prozess gedacht wird.
 _Hier eintragen, woran zuletzt gearbeitet wurde, damit die nächste Session
 direkt einsteigen kann._
 
-- [ ] (a) Bootstrap-CIs
-- [ ] (c) Per-Row-CSV-Dump
-- [ ] (b) Judge-Noise-Messung (3 Wiederholläufe Baseline)
+- [x] (a) Bootstrap-CIs — numpy-Percentile-Bootstrap in `evaluate_ground_truth.py`
+- [x] (c) Per-Row-CSV-Dump — `evaluation/runs/{label}_raw.csv` + `{label}_scores.json`
+- [x] (b) Judge-Noise-Messung — je 3 Replikate für OpenAI und e5, σ je Metrik in README
 - [ ] (d) Stance-Accuracy-Skript
 - [ ] (e) Frageformulierungs-Variante
+
+**Stand:** README-Tabelle ist auf Replikat-Mittelwerte + 2·SE(Δ)-Schwelle umgestellt;
+alte Varianten-Zeilen (k=10, Section-aware) wurden als "im Rauschen, nicht reproduziert"
+zusammengefasst. Raw-CSVs sind gitignored (enthalten BpB-Begründungen); nur
+`*_scores.json` werden gepusht.
+
+**Nächster Schritt:** (d) Stance-Accuracy als kategoriale Metrik — schließt die größte
+verbliebene Eval-Lücke (Produkt-Feature ohne Messung) und ist die einzige Metrik im Setup,
+die ohne LLM-Judge auskommt.

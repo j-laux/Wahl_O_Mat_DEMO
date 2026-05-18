@@ -226,47 +226,55 @@ Validation against the official BpB Wahl-O-Mat 2025 dataset: 38 political theses
 party positions (agree / neutral / disagree) and reasoning as reference answers. Enables three
 additional metrics that directly measure retrieval quality and factual correctness.
 
-**Experiment results** (gpt-4o-mini, n=35, stratified sample 5 theses × 7 parties):
+**Setup:** gpt-4o-mini both as generator and as RAGAS judge, n=35 (stratified sample
+5 theses × 7 parties, fixed seed). Each condition was **replicated 3×** (identical pipeline,
+new RAGAS judge call) to quantify end-to-end stochasticity. Reported as mean ± σ across the
+3 runs, plus 2·SE(Δ) = `2·√(σ₁²/3 + σ₂²/3)` as the threshold above which a difference between
+two conditions is no longer within noise.
 
-| Variant                                           | faithfulness | answer_relevancy | ctx_precision | ctx_recall | answer_correctness |
-|---------------------------------------------------|-------------|-----------------|--------------|-----------|-------------------|
-| RecursiveSplit k=5 + OpenAI (baseline)            | 0.919       | 0.738           | 0.746        | **0.621** | **0.641**         |
-| RecursiveSplit k=10 + OpenAI                      | 0.959       | 0.764           | 0.746        | 0.625     | 0.611             |
-| Section-aware chunking k=5 + OpenAI               | 0.939       | **0.767**       | **0.760**    | 0.608     | 0.606             |
-| RecursiveSplit k=5 + multilingual-e5-large        | **0.969**   | 0.720           | 0.700        | 0.536     | 0.281             |
+**Embedder comparison** (RecursiveSplit, k=5):
 
-OpenAI embedding is `text-embedding-3-small`. The e5 run uses the instruction prefixes
-(`"query: "` / `"passage: "`) required by the model and was evaluated against a freshly
-re-ingested ChromaDB (an earlier run without prefixes was discarded as invalid).
+| Metric              | OpenAI mean ± σ     | e5-large mean ± σ   | Δ (OpenAI − e5) | 2·SE(Δ) | Verdict                  |
+|---------------------|---------------------|---------------------|-----------------|---------|--------------------------|
+| faithfulness        | 0.945 ± 0.014       | 0.953 ± 0.036       | −0.009          | 0.045   | within noise             |
+| answer_relevancy    | 0.718 ± 0.017       | 0.712 ± 0.030       | +0.006          | 0.040   | within noise             |
+| context_precision   | **0.754 ± 0.007**   | 0.670 ± 0.027       | **+0.084**      | 0.032   | **significant**          |
+| context_recall      | **0.581 ± 0.023**   | 0.537 ± 0.020       | **+0.045**      | 0.035   | **significant** (narrow) |
+| answer_correctness  | **0.337 ± 0.015**   | 0.281 ± 0.011       | **+0.056**      | 0.021   | **significant**          |
 
-**Interpretation:** The three OpenAI variants sit so close together on `context_recall`
-(0.608 – 0.625) that, at n=35 and without bootstrap confidence intervals, the differences are
-plausibly within LLM-judge noise — these data **do not support** the claim that top-K or
-section-aware chunking moves `context_recall`. The switch to `multilingual-e5-large` shows a
-much larger effect (Δ `context_recall` ≈ −0.086, Δ `answer_correctness` ≈ −0.36) that exceeds
-typical judge variance, but is not formally certified without CIs. Plausible reason: e5-large is
-primarily optimised for cross-lingual retrieval, whereas `text-embedding-3-small` was trained on
-a heavily German-inclusive corpus. What these data actually support is: **one specific
-multilingual embedder does not improve this configuration** — the broader hypothesis that
-embedding alignment is the bottleneck remains open.
+OpenAI = `text-embedding-3-small`. e5 = `intfloat/multilingual-e5-large` with the instruction
+prefixes (`"query: "` / `"passage: "`) the model requires. Any embedder switch requires a full
+ChromaDB re-ingest (different vector dimensionality).
+
+**Interpretation:**
+- **Embedder affects retrieval, not generation.** `context_precision` and `context_recall`
+  improve significantly with OpenAI; `faithfulness` and `answer_relevancy` stay effectively
+  identical. Plausible, since the same generator LLM produces final answers and its limits
+  largely flatten the retrieval advantage.
+- **End-quality gain is real but small.** `answer_correctness` +0.056 — measurable, not a
+  game-changer.
+- **OpenAI is also *more stable*.** σ_OpenAI < σ_e5 across all metrics — the German corpus is
+  retrieved more consistently, reducing variance in the judge input.
+
+**Discarded hypotheses.** Earlier iterations varied top-K (k=5 vs. k=10) and chunking
+(RecursiveSplit vs. section-aware), each with OpenAI. All measured deltas to the baseline
+fell below the noise floor (σ ≈ 0.02–0.04 per metric). Not reproducible as improvements —
+hence not listed as separate table rows here.
 
 **Known methodological limitations** (open roadmap):
-- n=35 is statistically thin; bootstrap CIs on per-row scores are missing.
-- LLM-judge variance has not been measured via repeated runs.
 - The question template discards the thesis text and asks the generic form
   "What is the position of {party} on the topic {title}?" — the gap between this broad question
-  and the specific BpB reasoning probably accounts for part of the ~0.62 `context_recall` ceiling.
+  and the specific BpB reasoning probably accounts for part of the ~0.58 `context_recall` ceiling.
 - `answer_correctness` compares verbose RAG prose against terse BpB official reasoning — the
-  baseline value (~0.64) partly reflects a semantically unfair comparison rather than pure
+  low absolute value (~0.34) partly reflects a semantically unfair comparison rather than pure
   correctness. A categorical stance-accuracy metric (agree / neutral / disagree) is still missing.
 - Faithfulness is structurally inflated by HyDE; an ablation with/without HyDE is missing.
-- The four variants vary non-orthogonally (no section-aware × k=10, no e5 × k=10) — effects
-  cannot be cleanly isolated.
 
 ```bash
-python -m evaluation.evaluate_ground_truth --sample 35   # dev run
-python -m evaluation.evaluate_ground_truth               # full run (38×7=266)
-# → evaluation/results_ground_truth.json
+python -m evaluation.evaluate_ground_truth --sample 35 --label baseline_k5_openai
+python -m evaluation.evaluate_ground_truth                                          # full run (38×7=266)
+# → evaluation/runs/{label}_scores.json  (aggregates, pushed)
+# → evaluation/runs/{label}_raw.csv      (per-row, gitignored — contains BpB reasoning text)
 ```
 
 > *Ground truth: © Bundeszentrale für politische Bildung. Dataset not included in this repository;

@@ -1,0 +1,33 @@
+{
+  "label": "baseline_k5_run3",
+  "n_evaluated": 35,
+  "n_total": 35,
+  "sample": 35,
+  "metrics": {
+    "faithfulness": {
+      "mean": 0.9697,
+      "ci_low": 0.9414,
+      "ci_high": 0.9929
+    },
+    "answer_relevancy": {
+      "mean": 0.7471,
+      "ci_low": 0.6129,
+      "ci_high": 0.8576
+    },
+    "context_precision": {
+      "mean": 0.6981,
+      "ci_low": 0.5677,
+      "ci_high": 0.8186
+    },
+    "context_recall": {
+      "mean": 0.5562,
+      "ci_low": 0.4443,
+      "ci_high": 0.6624
+    },
+    "answer_correctness": {
+      "mean": 0.2903,
+      "ci_low": 0.2171,
+      "ci_high": 0.3683
+    }
+  }
+}

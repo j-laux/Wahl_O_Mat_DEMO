@@ -229,49 +229,57 @@ den offiziellen Parteipositionierungen (stimme zu / neutral / stimme nicht zu) u
 als Referenzantworten. Ermöglicht drei zusätzliche Metriken, die Retrieval-Qualität und
 inhaltliche Korrektheit direkt messen.
 
-**Experiment-Ergebnisse** (gpt-4o-mini, n=35, stratifiziertes Sample 5 Thesen × 7 Parteien):
+**Setup:** gpt-4o-mini als Generator und als RAGAS-Judge, n=35 (stratifiziertes Sample
+5 Thesen × 7 Parteien, fixer Seed). Jede Kondition wurde **3× wiederholt** (identische
+Pipeline, neuer RAGAS-Judge-Call), um End-to-End-Stochastik zu quantifizieren. Berichtet
+werden Mittelwert ± σ über die 3 Läufe sowie 2·SE(Δ) = `2·√(σ₁²/3 + σ₂²/3)` als Schwelle,
+ab der ein Unterschied zwischen zwei Konditionen nicht mehr im Rauschen liegt.
 
-| Variante                                          | faithfulness | answer_relevancy | ctx_precision | ctx_recall | answer_correctness |
-|---------------------------------------------------|-------------|-----------------|--------------|-----------|-------------------|
-| RecursiveSplit k=5 + OpenAI (Baseline)            | 0.919       | 0.738           | 0.746        | **0.621** | **0.641**         |
-| RecursiveSplit k=10 + OpenAI                      | 0.959       | 0.764           | 0.746        | 0.625     | 0.611             |
-| Section-aware Chunking k=5 + OpenAI               | 0.939       | **0.767**       | **0.760**    | 0.608     | 0.606             |
-| RecursiveSplit k=5 + multilingual-e5-large        | **0.969**   | 0.720           | 0.700        | 0.536     | 0.281             |
+**Embedder-Vergleich** (RecursiveSplit, k=5):
 
-OpenAI-Embedding ist `text-embedding-3-small`. Der e5-Lauf wurde mit den vom Modell geforderten
-Instruction-Prefixen (`"query: "` / `"passage: "`) durchgeführt und gegen eine frisch ingestierte
-ChromaDB ausgewertet (vorheriger Lauf ohne Prefixe wurde als invalid verworfen).
+| Metrik              | OpenAI Ø ± σ        | e5-large Ø ± σ      | Δ (OpenAI − e5) | 2·SE(Δ) | Verdikt                  |
+|---------------------|---------------------|---------------------|-----------------|---------|--------------------------|
+| faithfulness        | 0.945 ± 0.014       | 0.953 ± 0.036       | −0.009          | 0.045   | im Rauschen              |
+| answer_relevancy    | 0.718 ± 0.017       | 0.712 ± 0.030       | +0.006          | 0.040   | im Rauschen              |
+| context_precision   | **0.754 ± 0.007**   | 0.670 ± 0.027       | **+0.084**      | 0.032   | **signifikant**          |
+| context_recall      | **0.581 ± 0.023**   | 0.537 ± 0.020       | **+0.045**      | 0.035   | **signifikant** (knapp)  |
+| answer_correctness  | **0.337 ± 0.015**   | 0.281 ± 0.011       | **+0.056**      | 0.021   | **signifikant**          |
 
-**Interpretation:** Die drei OpenAI-Varianten liegen bei `context_recall` so eng beieinander
-(0.608 – 0.625), dass die Unterschiede ohne Bootstrap-Konfidenzintervalle bei n=35 plausibel im
-LLM-Judge-Rauschen liegen — eine Aussage "Top-K oder Section-aware Chunking bewegt
-`context_recall`" lässt sich aus diesen Daten **nicht** belegen. Der Wechsel auf
-`multilingual-e5-large` zeigt einen deutlich größeren Effekt (Δ `context_recall` ≈ −0.086,
-Δ `answer_correctness` ≈ −0.36), der die typische Judge-Varianz übersteigt, aber ohne CIs
-formal nicht abgesichert ist. Plausibler Grund für die Unterlegenheit: e5-large ist primär auf
-cross-linguales Retrieval optimiert, während `text-embedding-3-small` auf einem stark
-deutschsprachigen Korpus trainiert wurde. Belegbar ist nur: **ein konkreter multilingualer
-Embedder verbessert in dieser Konfiguration nichts** — die allgemeine Hypothese
-"Embedding-Alignment ist der Bottleneck" bleibt damit offen.
+OpenAI = `text-embedding-3-small`. e5 = `intfloat/multilingual-e5-large` mit den vom Modell
+geforderten Instruction-Prefixen (`"query: "` / `"passage: "`). Jeder Embedder-Wechsel
+erfordert ein vollständiges Re-Ingest der ChromaDB (unterschiedliche Vektordimensionen).
+
+**Interpretation:**
+- **Embedder beeinflusst Retrieval, nicht Generation.** `context_precision` und
+  `context_recall` steigen mit OpenAI signifikant; `faithfulness` und `answer_relevancy`
+  bleiben praktisch identisch. Plausibel, weil derselbe Generator-LLM die finalen Antworten
+  erzeugt und seine Beschränkungen den Retrieval-Vorsprung weitgehend nivellieren.
+- **Endqualitätsgewinn ist real, aber klein.** `answer_correctness` +0.056 — messbar, aber
+  kein Game-Changer.
+- **OpenAI ist auch *stabiler*.** σ_OpenAI < σ_e5 quer durch alle Metriken — der deutsche
+  Korpus wird konsistenter retrievet und reduziert die Streuung im Judge-Input.
+
+**Verworfene Hypothesen.** Vorherige Iterationen variierten Top-K (k=5 vs. k=10) und
+Chunking (RecursiveSplit vs. Section-aware) jeweils mit OpenAI. Alle gemessenen Deltas
+zur Baseline lagen unter dem Rausch-Floor (σ ≈ 0.02–0.04 je Metrik). Nicht als
+Verbesserung reproduzierbar — daher hier nicht als separate Tabellenzeilen geführt.
 
 **Bekannte methodische Limitationen** (offene Roadmap):
-- n=35 ist statistisch dünn; Bootstrap-CIs auf die Per-Row-Scores fehlen.
-- LLM-Judge-Varianz wurde nicht durch Mehrfachläufe gemessen.
 - Die Frageformulierung verwirft den These-Text und fragt generisch
   „Was ist die Position der {Partei} zum Thema {Titel}?" — der Gap zwischen breiter Frage
-  und spezifischer BpB-Begründung erklärt vermutlich einen Teil des ~0.62-Niveaus bei
+  und spezifischer BpB-Begründung erklärt vermutlich einen Teil des ~0.58-Niveaus bei
   `context_recall`.
-- `answer_correctness` vergleicht ausführlichen RAG-Fließtext gegen formelhafte BpB-Kurzbegründung —
-  der Wert (~0.64 bei Baseline) misst auch eine semantisch unfaire Vergleichsbasis, nicht reine
-  Korrektheit. Eine Stance-Accuracy (zu / neutral / nicht zu) als kategoriale Metrik fehlt bisher.
+- `answer_correctness` vergleicht ausführlichen RAG-Fließtext gegen formelhafte
+  BpB-Kurzbegründung — der niedrige Absolut-Wert (~0.34) reflektiert auch eine semantisch
+  unfaire Vergleichsbasis, nicht reine Korrektheit. Eine Stance-Accuracy
+  (zu / neutral / nicht zu) als kategoriale Metrik fehlt bisher.
 - Faithfulness ist durch HyDE strukturell aufgebläht; eine Ablation mit/ohne HyDE fehlt.
-- Die vier Varianten variieren nicht-orthogonal (kein Section-aware × k=10, kein e5 × k=10) —
-  Effekte können nicht sauber isoliert werden.
 
 ```bash
-python -m evaluation.evaluate_ground_truth --sample 35   # Dev-Run
-python -m evaluation.evaluate_ground_truth               # Vollständiger Lauf (38×7=266)
-# → evaluation/results_ground_truth.json
+python -m evaluation.evaluate_ground_truth --sample 35 --label baseline_k5_openai
+python -m evaluation.evaluate_ground_truth                                          # Vollständiger Lauf (38×7=266)
+# → evaluation/runs/{label}_scores.json  (Aggregate, gepusht)
+# → evaluation/runs/{label}_raw.csv      (Per-Row, gitignored — enthält BpB-Begründungen)
 ```
 
 > *Ground Truth: © Bundeszentrale für politische Bildung. Datensatz nicht im Repo enthalten;

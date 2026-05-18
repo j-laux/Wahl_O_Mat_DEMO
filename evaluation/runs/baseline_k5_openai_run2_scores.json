@@ -1,0 +1,33 @@
+{
+  "label": "baseline_k5_openai_run2",
+  "n_evaluated": 35,
+  "n_total": 35,
+  "sample": 35,
+  "metrics": {
+    "faithfulness": {
+      "mean": 0.95,
+      "ci_low": 0.9143,
+      "ci_high": 0.981
+    },
+    "answer_relevancy": {
+      "mean": 0.7275,
+      "ci_low": 0.5907,
+      "ci_high": 0.8428
+    },
+    "context_precision": {
+      "mean": 0.7623,
+      "ci_low": 0.6313,
+      "ci_high": 0.8774
+    },
+    "context_recall": {
+      "mean": 0.555,
+      "ci_low": 0.4295,
+      "ci_high": 0.675
+    },
+    "answer_correctness": {
+      "mean": 0.3246,
+      "ci_low": 0.244,
+      "ci_high": 0.4063
+    }
+  }
+}

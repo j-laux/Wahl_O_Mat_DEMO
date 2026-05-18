@@ -12,10 +12,13 @@ Voraussetzung:
     python -m evaluation.ground_truth.build_dataset
 
 Nutzung:
-    python -m evaluation.evaluate_ground_truth            # alle 266 Einträge
-    python -m evaluation.evaluate_ground_truth --sample 35  # ~5 pro Partei
+    python -m evaluation.evaluate_ground_truth                              # alle 266 Einträge
+    python -m evaluation.evaluate_ground_truth --sample 35                  # ~5 pro Partei
+    python -m evaluation.evaluate_ground_truth --sample 35 --label k5_base  # gelabelter Run
 
-Ausgabe: evaluation/results_ground_truth.json
+Ausgabe (pro Run, in evaluation/runs/):
+    {label}_raw.csv      — eine Zeile pro evaluiertem Sample (Per-Row-Scores)
+    {label}_scores.json  — Aggregate inkl. Bootstrap-95%-CIs je Metrik
 """
 from __future__ import annotations
 
@@ -26,6 +29,8 @@ import os
 import random
 import sys
 from pathlib import Path
+
+import numpy as np
 
 try:
     __import__("pysqlite3")
@@ -53,7 +58,38 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 logger = logging.getLogger(__name__)
 
 GROUND_TRUTH_FILE = Path(__file__).parent / "ground_truth" / "ground_truth.json"
-RESULTS_FILE = Path(__file__).parent / "results_ground_truth.json"
+RESULTS_DIR = Path(__file__).parent / "runs"
+
+METRIC_COLUMNS = {
+    "faithfulness": "faithfulness",
+    "answer_relevancy": "answer_relevancy",
+    "context_precision": "llm_context_precision_with_reference",
+    "context_recall": "context_recall",
+    "answer_correctness": "factual_correctness(mode=f1)",
+}
+
+
+def _bootstrap_ci(
+    values: np.ndarray,
+    n_resamples: int = 10_000,
+    ci: float = 0.95,
+    seed: int = 42,
+) -> tuple[float, float]:
+    """Percentile-Bootstrap-CI für den Mittelwert.
+
+    Resamplet `values` mit Zurücklegen, berechnet je Resample den Mittelwert,
+    gibt das (alpha/2, 1-alpha/2)-Quantil der Bootstrap-Verteilung zurück.
+    """
+    rng = np.random.default_rng(seed)
+    values = np.asarray(values, dtype=float)
+    values = values[~np.isnan(values)]
+    if len(values) == 0:
+        return (float("nan"), float("nan"))
+    idx = rng.integers(0, len(values), size=(n_resamples, len(values)))
+    means = values[idx].mean(axis=1)
+    alpha = 1.0 - ci
+    lo, hi = np.quantile(means, [alpha / 2, 1 - alpha / 2])
+    return (float(lo), float(hi))
 
 
 def _load_entries(sample: int | None, seed: int) -> list[dict]:
@@ -81,6 +117,8 @@ def _load_entries(sample: int | None, seed: int) -> list[dict]:
 
 def _collect_rows(entries: list[dict]) -> dict[str, list]:
     rows: dict[str, list] = {
+        "party": [],
+        "these_nr": [],
         "question": [],
         "answer": [],
         "contexts": [],
@@ -105,6 +143,8 @@ def _collect_rows(entries: list[dict]) -> dict[str, list]:
             logger.warning("Keine Chunks – Eintrag übersprungen.")
             continue
 
+        rows["party"].append(entry["party"])
+        rows["these_nr"].append(entry["these_nr"])
         rows["question"].append(entry["question"])
         rows["answer"].append(answer.summary)
         rows["contexts"].append([doc.page_content for doc in docs])
@@ -123,6 +163,18 @@ def main() -> None:
         help="Stratified Sample-Größe (default: alle 266 Einträge)",
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--label",
+        type=str,
+        default="default",
+        help="Run-Label, wird Teil der Output-Dateinamen (z.B. 'baseline_k5')",
+    )
+    parser.add_argument(
+        "--bootstrap-resamples",
+        type=int,
+        default=10_000,
+        help="Anzahl Bootstrap-Resamples für CIs (default: 10000)",
+    )
     args = parser.parse_args()
 
     entries = _load_entries(args.sample, args.seed)
@@ -161,22 +213,40 @@ def main() -> None:
     )
     df = result.to_pandas()
 
-    scores = {
-        "faithfulness": round(df["faithfulness"].mean(), 4),
-        "answer_relevancy": round(df["answer_relevancy"].mean(), 4),
-        "context_precision": round(df["llm_context_precision_with_reference"].mean(), 4),
-        "context_recall": round(df["context_recall"].mean(), 4),
-        "answer_correctness": round(df["factual_correctness(mode=f1)"].mean(), 4),
+    # Per-Row-Scores zusammen mit Identifizierungs-Spalten persistieren —
+    # Grundlage für Bootstrap, Fehleranalyse und spätere Re-Aggregation.
+    df_out = df.copy()
+    df_out.insert(0, "party", rows["party"])
+    df_out.insert(0, "these_nr", rows["these_nr"])
+
+    RESULTS_DIR.mkdir(exist_ok=True)
+    raw_path = RESULTS_DIR / f"{args.label}_raw.csv"
+    scores_path = RESULTS_DIR / f"{args.label}_scores.json"
+    df_out.to_csv(raw_path, index=False)
+    logger.info("Per-Row-Scores: %s", raw_path)
+
+    scores: dict = {
+        "label": args.label,
         "n_evaluated": n,
         "n_total": len(entries),
         "sample": args.sample,
+        "metrics": {},
     }
+    for name, col in METRIC_COLUMNS.items():
+        values = df[col].to_numpy()
+        mean = float(np.nanmean(values))
+        lo, hi = _bootstrap_ci(values, n_resamples=args.bootstrap_resamples, seed=args.seed)
+        scores["metrics"][name] = {
+            "mean": round(mean, 4),
+            "ci_low": round(lo, 4),
+            "ci_high": round(hi, 4),
+        }
 
     logger.info("Ergebnis: %s", scores)
-    RESULTS_FILE.write_text(
+    scores_path.write_text(
         json.dumps(scores, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    logger.info("Gespeichert: %s", RESULTS_FILE)
+    logger.info("Aggregate: %s", scores_path)
 
 
 if __name__ == "__main__":
