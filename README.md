@@ -13,7 +13,8 @@ inklusive automatischer Stance-Klassifizierung (progressiv / konservativ / neutr
 > Bild jenseits von Wahlkampf-Kommunikation zu geben.
 
 ---
-
+![til](/graphics/demo.gif)
+---
 ## Features
 
 | Feature | Beschreibung |
