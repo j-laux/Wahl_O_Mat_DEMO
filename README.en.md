@@ -1,4 +1,4 @@
-# Wahl-O-Mat DEMO
+# Political RAG DEMO
 
 RAG-based analysis platform for the **2025 German federal election (Bundestagswahl 2025)** —
 Version 1 of a multi-layer political knowledge system. Users can ask questions about political
