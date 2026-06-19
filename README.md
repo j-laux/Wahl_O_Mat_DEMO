@@ -1,4 +1,4 @@
-# Wahl-O-Mat DEMO
+# Political RAG DEMO
 
 [🇬🇧 English version](README.en.md)
 
